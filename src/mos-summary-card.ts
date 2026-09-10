@@ -1,10 +1,19 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "custom-card-helpers";
-import type { MosSummaryCardConfig } from "./types";
-import { formatValue, friendlyName, getState, isProblem, numericValue } from "./helpers";
+import type { MosKindConfig, MosSummaryCardConfig } from "./types";
+import { KIND_DEFAULTS } from "./kinds";
+import {
+  countOn,
+  countProblems,
+  formatValue,
+  getState,
+  getStates,
+  numericValue,
+  sumNumeric,
+} from "./helpers";
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.2.0";
 
 // eslint-disable-next-line no-console
 console.info(
@@ -23,9 +32,10 @@ export class MosSummaryCard extends LitElement {
   public static getStubConfig(): Partial<MosSummaryCardConfig> {
     return {
       title: "NAS",
-      storage_entities: [],
-      container_entities: [],
-      vm_entities: [],
+      kinds: [
+        { kind: "docker_container", state_entities: [], stat_entities: [] },
+        { kind: "compose_stack", state_entities: [], stat_entities: [] },
+      ],
     };
   }
 
@@ -40,7 +50,7 @@ export class MosSummaryCard extends LitElement {
   }
 
   public getCardSize(): number {
-    return 4;
+    return 2 + (this._config?.kinds?.length ?? 2);
   }
 
   protected render() {
@@ -51,29 +61,14 @@ export class MosSummaryCard extends LitElement {
     const cpu = getState(this.hass, this._config.cpu_entity);
     const memory = getState(this.hass, this._config.memory_entity);
     const temperature = getState(this.hass, this._config.temperature_entity);
-    const ups = getState(this.hass, this._config.ups_entity);
-
-    const storage = (this._config.storage_entities ?? [])
-      .map((id) => getState(this.hass, id))
-      .filter(Boolean);
-    const disks = (this._config.disk_entities ?? [])
-      .map((id) => getState(this.hass, id))
-      .filter(Boolean);
-    const containers = (this._config.container_entities ?? [])
-      .map((id) => getState(this.hass, id))
-      .filter(Boolean);
-    const vms = (this._config.vm_entities ?? [])
-      .map((id) => getState(this.hass, id))
-      .filter(Boolean);
-
     const hasVitals = cpu || memory || temperature;
-    const hasAny =
-      hasVitals || ups || storage.length || disks.length || containers.length || vms.length;
+
+    const kinds = this._config.kinds ?? [];
 
     return html`
       <ha-card .header=${this._config.title}>
         <div class="content">
-          ${!hasAny
+          ${!hasVitals && !kinds.length
             ? html`<div class="empty">
                 No entities configured yet. Edit this card to select MOS sensors.
               </div>`
@@ -81,66 +76,21 @@ export class MosSummaryCard extends LitElement {
           ${hasVitals
             ? html`
                 <div class="row vitals">
-                  ${cpu ? this._renderStat("mdi:chip", "CPU", cpu) : nothing}
-                  ${memory ? this._renderStat("mdi:memory", "Memory", memory) : nothing}
+                  ${cpu ? this._renderVital("mdi:chip", "CPU", cpu) : nothing}
+                  ${memory ? this._renderVital("mdi:memory", "Memory", memory) : nothing}
                   ${temperature
-                    ? this._renderStat("mdi:thermometer", "Temp", temperature)
+                    ? this._renderVital("mdi:thermometer", "Temp", temperature)
                     : nothing}
                 </div>
               `
             : nothing}
-          ${storage.length
-            ? html`
-                <div class="section">
-                  <div class="section-title">Storage</div>
-                  ${storage.map((s) => this._renderPill(s))}
-                </div>
-              `
-            : nothing}
-          ${disks.length
-            ? html`
-                <div class="section">
-                  <div class="section-title">Disks</div>
-                  ${disks.map((s) => this._renderPill(s))}
-                </div>
-              `
-            : nothing}
-          ${containers.length
-            ? html`
-                <div class="section">
-                  <div class="section-title">
-                    Containers · ${this._runningCount(containers)}/${containers.length} running
-                  </div>
-                </div>
-              `
-            : nothing}
-          ${vms.length
-            ? html`
-                <div class="section">
-                  <div class="section-title">
-                    VMs · ${this._runningCount(vms)}/${vms.length} running
-                  </div>
-                </div>
-              `
-            : nothing}
-          ${ups
-            ? html`
-                <div class="section">
-                  <div class="section-title">UPS</div>
-                  ${this._renderPill(ups)}
-                </div>
-              `
-            : nothing}
+          <div class="banners">${kinds.map((k) => this._renderBanner(k))}</div>
         </div>
       </ha-card>
     `;
   }
 
-  private _runningCount(entities: (ReturnType<typeof getState>)[]): number {
-    return entities.filter((e) => e && e.state === "on").length;
-  }
-
-  private _renderStat(icon: string, label: string, stateObj: ReturnType<typeof getState>) {
+  private _renderVital(icon: string, label: string, stateObj: ReturnType<typeof getState>) {
     const n = numericValue(stateObj);
     return html`
       <div class="stat">
@@ -154,13 +104,60 @@ export class MosSummaryCard extends LitElement {
     `;
   }
 
-  private _renderPill(stateObj: ReturnType<typeof getState>) {
-    const problem = isProblem(stateObj);
+  private _renderBanner(kindConfig: MosKindConfig) {
+    const defaults = KIND_DEFAULTS[kindConfig.kind];
+    if (!defaults) return nothing;
+
+    const stateEntities = getStates(this.hass, kindConfig.state_entities);
+    const statEntities = getStates(this.hass, kindConfig.stat_entities);
+
+    if (!stateEntities.length && !statEntities.length) {
+      return nothing;
+    }
+
+    const name = kindConfig.name ?? defaults.name;
+    const icon = kindConfig.icon ?? defaults.icon;
+    const statLabel = kindConfig.stat_label ?? defaults.statLabel;
+    const statIcon = kindConfig.stat_icon ?? defaults.statIcon;
+    const stat = sumNumeric(statEntities);
+
+    let subtitle: string | undefined;
+    let accent: "neutral" | "active" | "problem" = "neutral";
+
+    if (defaults.mode === "running") {
+      if (stateEntities.length) {
+        const on = countOn(stateEntities);
+        subtitle = `${on}/${stateEntities.length} running`;
+        accent = on > 0 ? "active" : "neutral";
+      }
+    } else {
+      if (stateEntities.length) {
+        const problems = countProblems(stateEntities);
+        subtitle = problems > 0 ? `${problems} issue${problems === 1 ? "" : "s"}` : "All healthy";
+        accent = problems > 0 ? "problem" : "active";
+      }
+    }
+
     return html`
-      <div class="pill ${problem ? "problem" : "ok"}">
-        <span class="dot"></span>
-        <span class="pill-name">${friendlyName(stateObj, stateObj?.entity_id ?? "")}</span>
-        <span class="pill-value">${formatValue(stateObj)}</span>
+      <div class="banner ${accent}">
+        <div class="banner-icon">
+          <ha-icon icon=${icon}></ha-icon>
+        </div>
+        <div class="banner-main">
+          <div class="banner-name">${name}</div>
+          ${subtitle ? html`<div class="banner-subtitle">${subtitle}</div>` : nothing}
+        </div>
+        ${stat
+          ? html`
+              <div class="banner-stat">
+                <ha-icon icon=${statIcon}></ha-icon>
+                <div class="banner-stat-text">
+                  <div class="banner-stat-value">${stat.value}${stat.unit ? ` ${stat.unit}` : ""}</div>
+                  <div class="banner-stat-label">${statLabel}</div>
+                </div>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -215,42 +212,68 @@ export class MosSummaryCard extends LitElement {
       height: 100%;
       background: var(--primary-color);
     }
-    .section-title {
-      font-size: 0.8em;
-      font-weight: 500;
-      color: var(--secondary-text-color);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 4px;
+    .banners {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .pill {
+    .banner {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 4px 0;
-      font-size: 0.9em;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
     }
-    .pill-name {
+    .banner-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: var(--disabled-color, #9e9e9e);
+      color: var(--card-background-color, #fff);
+    }
+    .banner.active .banner-icon {
+      background: var(--primary-color);
+    }
+    .banner.problem .banner-icon {
+      background: var(--error-color, #db4437);
+    }
+    .banner-main {
       flex: 1;
+      min-width: 0;
+    }
+    .banner-name {
+      font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .pill-value {
+    .banner-subtitle {
+      font-size: 0.8em;
       color: var(--secondary-text-color);
     }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .banner-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       flex-shrink: 0;
-      background: var(--state-icon-color, var(--disabled-color));
     }
-    .pill.ok .dot {
-      background: var(--success-color, #43a047);
+    .banner-stat ha-icon {
+      color: var(--secondary-text-color);
     }
-    .pill.problem .dot {
-      background: var(--error-color, #db4437);
+    .banner-stat-text {
+      text-align: right;
+    }
+    .banner-stat-value {
+      font-weight: 500;
+    }
+    .banner-stat-label {
+      font-size: 0.75em;
+      color: var(--secondary-text-color);
     }
   `;
 }
@@ -265,6 +288,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "mos-summary-card",
   name: "MOS Summary Card",
-  description: "Summarizes a MOS NAS device: CPU, memory, temperature, storage pools, containers, VMs, and UPS.",
+  description:
+    "Banner-style summary of a MOS NAS device by kind: Docker, Compose Stacks, LXC, VMs, Disks, Storage Pools, UPS.",
   preview: false,
 });

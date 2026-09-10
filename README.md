@@ -61,8 +61,14 @@ Then add a card with `type: custom:mos-summary-card`.
 
 ## Card configuration
 
-All fields are optional entity IDs from your `ha-mos` integration — include
-whichever ones you have:
+The card renders one **banner row per "kind"** (Docker, Compose Stacks,
+LXC, VMs, Disks, Storage Pools, UPS) — the same kind taxonomy used by
+[ha-mos-card](https://github.com/anym001/ha-mos-card). Each banner shows an
+icon, a running/health count, and one aggregate stat (e.g. summed memory
+usage across all containers of that kind).
+
+Optional top-of-card "vitals" (overall host CPU/memory/temperature) plus
+any number of `kinds` entries:
 
 ```yaml
 type: custom:mos-summary-card
@@ -70,17 +76,49 @@ title: NAS
 cpu_entity: sensor.mos_cpu_load
 memory_entity: sensor.mos_memory_usage
 temperature_entity: sensor.mos_cpu_temperature
-storage_entities:
-  - sensor.mos_pool_main_usage
-disk_entities:
-  - binary_sensor.mos_disk_1_smart_warning
-container_entities:
-  - switch.mos_container_plex
-  - switch.mos_container_sonarr
-vm_entities:
-  - switch.mos_vm_ubuntu
-ups_entity: binary_sensor.mos_ups_status
+kinds:
+  - kind: docker_container
+    state_entities:
+      - switch.mos_container_plex
+      - switch.mos_container_sonarr
+    stat_entities:
+      - sensor.mos_container_plex_memory
+      - sensor.mos_container_sonarr_memory
+  - kind: compose_stack
+    state_entities:
+      - switch.mos_stack_arr
+    stat_entities:
+      - sensor.mos_stack_arr_memory
+  - kind: disk
+    state_entities:
+      - binary_sensor.mos_disk_1_smart_warning
+      - binary_sensor.mos_disk_2_smart_warning
+    stat_entities:
+      - sensor.mos_disk_1_temperature
+      - sensor.mos_disk_2_temperature
+  - kind: storage_pool
+    state_entities:
+      - binary_sensor.mos_pool_main_health
+    stat_entities:
+      - sensor.mos_pool_main_free
+  - kind: ups
+    state_entities:
+      - binary_sensor.mos_ups_on_battery
+    stat_entities:
+      - sensor.mos_ups_load
 ```
+
+Each `kinds` entry supports:
+
+| Option | Purpose |
+|---|---|
+| `kind` | One of `docker_container`, `compose_stack`, `lxc_container`, `vm`, `disk`, `storage_pool`, `ups` |
+| `state_entities` | switch/binary_sensor entities driving the running count (containers/VMs) or health/problem count (disks/pools/UPS) and the banner's accent color |
+| `stat_entities` | Numeric sensor entities summed into the banner's secondary stat (e.g. per-container memory sensors) |
+| `name`, `icon`, `stat_label`, `stat_icon` | Override the kind's defaults |
+
+A banner is only rendered if it has at least one `state_entities` or
+`stat_entities` entry configured.
 
 Use **Developer Tools → States** in Home Assistant to find the exact
 entity IDs `ha-mos` created for your setup.
