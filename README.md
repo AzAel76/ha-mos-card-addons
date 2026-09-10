@@ -67,52 +67,78 @@ LXC, VMs, Disks, Storage Pools, UPS) — the same kind taxonomy used by
 icon, a running/health count, and one aggregate stat (e.g. summed memory
 usage across all containers of that kind).
 
-Optional top-of-card "vitals" (overall host CPU/memory/temperature) plus
-any number of `kinds` entries:
+### GUI editor
+
+Add the card through the dashboard UI (Add Card → search "MOS Summary") and
+it opens a visual editor built on Home Assistant's native form/selector
+components — the same picker widgets HA's own card editors use:
+
+- **Title** text field
+- **MOS server** device picker (informational — filtered to devices from
+  the `mos` integration; handy for finding entity names in the pickers
+  below)
+- **CPU / Memory / Temperature entity** pickers for the optional top vitals
+  row
+- One collapsible section per kind (Docker, Compose Stacks, LXC, VMs,
+  Disks, Storage Pools, UPS), each with:
+  - a multi-entity picker for **running/health entities**
+    (switch/binary_sensor, pre-filtered by domain)
+  - a multi-entity picker for **stat entities** (sensor, summed into the
+    banner's secondary stat)
+  - an **Advanced** sub-section to override the kind's name/icon/stat
+    label/stat icon
+
+No YAML editing is required. A kind's banner only appears once you've
+picked at least one entity for it.
+
+### YAML
+
+The same fields are available directly in YAML — each kind is a top-level
+key on the card config, matching the editor's `MosKindFields` shape:
 
 ```yaml
 type: custom:mos-summary-card
 title: NAS
+server: 1a2b3c4d5e6f7890abcdef1234567890
 cpu_entity: sensor.mos_cpu_load
 memory_entity: sensor.mos_memory_usage
 temperature_entity: sensor.mos_cpu_temperature
-kinds:
-  - kind: docker_container
-    state_entities:
-      - switch.mos_container_plex
-      - switch.mos_container_sonarr
-    stat_entities:
-      - sensor.mos_container_plex_memory
-      - sensor.mos_container_sonarr_memory
-  - kind: compose_stack
-    state_entities:
-      - switch.mos_stack_arr
-    stat_entities:
-      - sensor.mos_stack_arr_memory
-  - kind: disk
-    state_entities:
-      - binary_sensor.mos_disk_1_smart_warning
-      - binary_sensor.mos_disk_2_smart_warning
-    stat_entities:
-      - sensor.mos_disk_1_temperature
-      - sensor.mos_disk_2_temperature
-  - kind: storage_pool
-    state_entities:
-      - binary_sensor.mos_pool_main_health
-    stat_entities:
-      - sensor.mos_pool_main_free
-  - kind: ups
-    state_entities:
-      - binary_sensor.mos_ups_on_battery
-    stat_entities:
-      - sensor.mos_ups_load
+docker_container:
+  state_entities:
+    - switch.mos_container_plex
+    - switch.mos_container_sonarr
+  stat_entities:
+    - sensor.mos_container_plex_memory
+    - sensor.mos_container_sonarr_memory
+compose_stack:
+  state_entities:
+    - switch.mos_stack_arr
+  stat_entities:
+    - sensor.mos_stack_arr_memory
+disk:
+  state_entities:
+    - binary_sensor.mos_disk_1_smart_warning
+    - binary_sensor.mos_disk_2_smart_warning
+  stat_entities:
+    - sensor.mos_disk_1_temperature
+    - sensor.mos_disk_2_temperature
+storage_pool:
+  state_entities:
+    - binary_sensor.mos_pool_main_health
+  stat_entities:
+    - sensor.mos_pool_main_free
+ups:
+  state_entities:
+    - binary_sensor.mos_ups_on_battery
+  stat_entities:
+    - sensor.mos_ups_load
 ```
 
-Each `kinds` entry supports:
+Top-level kind keys (`docker_container`, `compose_stack`, `lxc_container`,
+`vm`, `disk`, `storage_pool`, `ups`) each accept:
 
 | Option | Purpose |
 |---|---|
-| `kind` | One of `docker_container`, `compose_stack`, `lxc_container`, `vm`, `disk`, `storage_pool`, `ups` |
 | `state_entities` | switch/binary_sensor entities driving the running count (containers/VMs) or health/problem count (disks/pools/UPS) and the banner's accent color |
 | `stat_entities` | Numeric sensor entities summed into the banner's secondary stat (e.g. per-container memory sensors) |
 | `name`, `icon`, `stat_label`, `stat_icon` | Override the kind's defaults |
@@ -122,8 +148,6 @@ A banner is only rendered if it has at least one `state_entities` or
 
 Use **Developer Tools → States** in Home Assistant to find the exact
 entity IDs `ha-mos` created for your setup.
-
-There's no visual editor yet — configuration is YAML-only for now.
 
 ## Publishing / HACS
 

@@ -1,17 +1,19 @@
 import type { HomeAssistant, LovelaceCardConfig } from "custom-card-helpers";
 
 /** Mirrors the device "kinds" from https://github.com/anym001/ha-mos-card */
-export type MosKindId =
-  | "docker_container"
-  | "compose_stack"
-  | "lxc_container"
-  | "vm"
-  | "disk"
-  | "storage_pool"
-  | "ups";
+export const KIND_IDS = [
+  "docker_container",
+  "compose_stack",
+  "lxc_container",
+  "vm",
+  "disk",
+  "storage_pool",
+  "ups",
+] as const;
 
-export interface MosKindConfig {
-  kind: MosKindId;
+export type MosKindId = (typeof KIND_IDS)[number];
+
+export interface MosKindFields {
   /** Overrides the default banner title, e.g. "Docker". */
   name?: string;
   /** Overrides the default mdi icon. */
@@ -32,14 +34,16 @@ export interface MosKindConfig {
   stat_icon?: string;
 }
 
-export interface MosSummaryCardConfig extends LovelaceCardConfig {
-  type: "custom:mos-summary-card";
-  title?: string;
-  cpu_entity?: string;
-  memory_entity?: string;
-  temperature_entity?: string;
-  kinds?: MosKindConfig[];
-}
+export type MosSummaryCardConfig = LovelaceCardConfig &
+  Partial<Record<MosKindId, MosKindFields>> & {
+    type: "custom:mos-summary-card";
+    title?: string;
+    /** device_id of the MOS server device, from the ha-mos integration. */
+    server?: string;
+    cpu_entity?: string;
+    memory_entity?: string;
+    temperature_entity?: string;
+  };
 
 export type { HomeAssistant };
 

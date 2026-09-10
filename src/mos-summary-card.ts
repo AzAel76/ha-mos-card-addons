@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { HomeAssistant } from "custom-card-helpers";
-import type { MosKindConfig, MosSummaryCardConfig } from "./types";
+import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
+import { KIND_IDS, type MosKindFields, type MosSummaryCardConfig } from "./types";
 import { KIND_DEFAULTS } from "./kinds";
 import {
   countOn,
@@ -13,7 +13,7 @@ import {
   sumNumeric,
 } from "./helpers";
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.0";
 
 // eslint-disable-next-line no-console
 console.info(
@@ -28,14 +28,16 @@ export class MosSummaryCard extends LitElement {
 
   @state() private _config!: MosSummaryCardConfig;
 
-  // No visual editor yet — configure via YAML. See README for options.
+  public static async getConfigElement(): Promise<LovelaceCardEditor> {
+    await import("./editor/mos-summary-card-editor");
+    return document.createElement("mos-summary-card-editor") as unknown as LovelaceCardEditor;
+  }
+
   public static getStubConfig(): Partial<MosSummaryCardConfig> {
     return {
       title: "NAS",
-      kinds: [
-        { kind: "docker_container", state_entities: [], stat_entities: [] },
-        { kind: "compose_stack", state_entities: [], stat_entities: [] },
-      ],
+      docker_container: { state_entities: [], stat_entities: [] },
+      compose_stack: { state_entities: [], stat_entities: [] },
     };
   }
 
@@ -50,7 +52,8 @@ export class MosSummaryCard extends LitElement {
   }
 
   public getCardSize(): number {
-    return 2 + (this._config?.kinds?.length ?? 2);
+    const kindCount = KIND_IDS.filter((k) => this._config?.[k]).length;
+    return 2 + kindCount;
   }
 
   protected render() {
@@ -63,12 +66,14 @@ export class MosSummaryCard extends LitElement {
     const temperature = getState(this.hass, this._config.temperature_entity);
     const hasVitals = cpu || memory || temperature;
 
-    const kinds = this._config.kinds ?? [];
+    const kindEntries = KIND_IDS.map((id) => [id, this._config[id]] as const).filter(
+      ([, fields]) => fields
+    );
 
     return html`
       <ha-card .header=${this._config.title}>
         <div class="content">
-          ${!hasVitals && !kinds.length
+          ${!hasVitals && !kindEntries.length
             ? html`<div class="empty">
                 No entities configured yet. Edit this card to select MOS sensors.
               </div>`
@@ -84,7 +89,9 @@ export class MosSummaryCard extends LitElement {
                 </div>
               `
             : nothing}
-          <div class="banners">${kinds.map((k) => this._renderBanner(k))}</div>
+          <div class="banners">
+            ${kindEntries.map(([id, fields]) => this._renderBanner(id, fields as MosKindFields))}
+          </div>
         </div>
       </ha-card>
     `;
@@ -104,21 +111,20 @@ export class MosSummaryCard extends LitElement {
     `;
   }
 
-  private _renderBanner(kindConfig: MosKindConfig) {
-    const defaults = KIND_DEFAULTS[kindConfig.kind];
-    if (!defaults) return nothing;
+  private _renderBanner(kindId: (typeof KIND_IDS)[number], fields: MosKindFields) {
+    const defaults = KIND_DEFAULTS[kindId];
 
-    const stateEntities = getStates(this.hass, kindConfig.state_entities);
-    const statEntities = getStates(this.hass, kindConfig.stat_entities);
+    const stateEntities = getStates(this.hass, fields.state_entities);
+    const statEntities = getStates(this.hass, fields.stat_entities);
 
     if (!stateEntities.length && !statEntities.length) {
       return nothing;
     }
 
-    const name = kindConfig.name ?? defaults.name;
-    const icon = kindConfig.icon ?? defaults.icon;
-    const statLabel = kindConfig.stat_label ?? defaults.statLabel;
-    const statIcon = kindConfig.stat_icon ?? defaults.statIcon;
+    const name = fields.name ?? defaults.name;
+    const icon = fields.icon ?? defaults.icon;
+    const statLabel = fields.stat_label ?? defaults.statLabel;
+    const statIcon = fields.stat_icon ?? defaults.statIcon;
     const stat = sumNumeric(statEntities);
 
     let subtitle: string | undefined;
