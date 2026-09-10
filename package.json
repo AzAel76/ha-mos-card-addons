@@ -1,0 +1,21 @@
+{
+  "name": "mos-summary-card",
+  "version": "0.1.0",
+  "description": "A Home Assistant Lovelace card that summarizes a MOS NAS device (CPU, memory, temperature, storage pools, containers/VMs, UPS) from the ha-mos integration.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "custom-card-helpers": "^1.9.0",
+    "home-assistant-js-websocket": "^9.4.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
