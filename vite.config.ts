@@ -7,8 +7,8 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     lib: {
-      entry: resolve(__dirname, "src/mos-summary-card.ts"),
-      name: "MosSummaryCard",
+      entry: resolve(__dirname, "src/mos-kind-title-card.ts"),
+      name: "MosKindTitleCard",
       formats: ["es"],
       fileName: () => "mos-summary-card.js",
     },

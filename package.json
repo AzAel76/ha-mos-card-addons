@@ -1,7 +1,7 @@
 {
   "name": "mos-summary-card",
   "version": "0.1.0",
-  "description": "A Home Assistant Lovelace card that summarizes a MOS NAS device (CPU, memory, temperature, storage pools, containers/VMs, UPS) from the ha-mos integration.",
+  "description": "A ~50px Home Assistant Lovelace title card for one ha-mos virtualization kind (Docker, Compose Stacks, LXC, or VMs): running/total counts, update/problem badges, and a host-RAM memory gauge.",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",

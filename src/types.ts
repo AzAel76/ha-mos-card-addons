@@ -1,54 +1,23 @@
-import type { HomeAssistant, LovelaceCardConfig } from "custom-card-helpers";
+import type { ActionConfig, HomeAssistant, LovelaceCardConfig, LovelaceCardEditor } from "custom-card-helpers";
+import type { KindId } from "./kinds";
 
-/** Mirrors the device "kinds" from https://github.com/anym001/ha-mos-card */
-export const KIND_IDS = [
-  "docker_container",
-  "compose_stack",
-  "lxc_container",
-  "vm",
-  "disk",
-  "storage_pool",
-  "ups",
-] as const;
-
-export type MosKindId = (typeof KIND_IDS)[number];
-
-export interface MosKindFields {
-  /** Overrides the default banner title, e.g. "Docker". */
-  name?: string;
-  /** Overrides the default mdi icon. */
-  icon?: string;
-  /**
-   * Entities whose on/off (or problem) state drives the running/health
-   * count and the banner's accent color. switch/binary_sensor entities.
-   */
-  state_entities?: string[];
-  /**
-   * Numeric sensor entities summed into the banner's secondary stat, e.g.
-   * per-container memory usage sensors summed into one "Memory" total.
-   */
-  stat_entities?: string[];
-  /** Overrides the default secondary-stat label, e.g. "Memory". */
-  stat_label?: string;
-  /** Overrides the default secondary-stat mdi icon. */
-  stat_icon?: string;
+export interface MosKindTitleCardConfig extends LovelaceCardConfig {
+  type: "custom:mos-kind-title-card";
+  /** device_id of the MOS server device, from the ha-mos integration. */
+  server?: string;
+  kind?: KindId;
+  /** Overrides the kind's display name. */
+  title?: string;
+  tap_action?: ActionConfig;
+  hold_action?: ActionConfig;
+  double_tap_action?: ActionConfig;
 }
-
-export type MosSummaryCardConfig = LovelaceCardConfig &
-  Partial<Record<MosKindId, MosKindFields>> & {
-    type: "custom:mos-summary-card";
-    title?: string;
-    /** device_id of the MOS server device, from the ha-mos integration. */
-    server?: string;
-    cpu_entity?: string;
-    memory_entity?: string;
-    temperature_entity?: string;
-  };
 
 export type { HomeAssistant };
 
 declare global {
   interface HTMLElementTagNameMap {
-    "mos-summary-card": import("./mos-summary-card").MosSummaryCard;
+    "mos-kind-title-card": import("./mos-kind-title-card").MosKindTitleCard;
+    "mos-kind-title-card-editor": LovelaceCardEditor;
   }
 }
