@@ -3,6 +3,7 @@ import type { KindId } from "./kinds";
 
 export type CardLayout = "standard" | "compact" | "gauge_first";
 export type IconStyle = "filled" | "transparent";
+export type IconShape = "circle" | "square";
 export type LinkStyle = "badge" | "button";
 
 export interface MosKindTitleCardConfig extends LovelaceCardConfig {
@@ -18,6 +19,8 @@ export interface MosKindTitleCardConfig extends LovelaceCardConfig {
   color?: string;
   /** "filled" (default): a colored circle behind a white icon. "transparent": no circle, the icon drawn directly in `icon_color` (or `color`). */
   icon_style?: IconStyle;
+  /** "circle" (default) or "square" (rounded square, matching ha-mos-card's own icon shape). */
+  icon_shape?: IconShape;
   /** Overrides the icon glyph's own color, independent of the badge background. */
   icon_color?: string;
   /** Default "standard". "compact" is deliberately shorter than 50px for denser dashboards. */

@@ -100,6 +100,8 @@ Assistant's native `ha-form`/selector components:
 - **Icon** — optional override of the kind's default mdi icon.
 - **Icon style** — `Filled` (default: a colored circle behind a white icon)
   or `Transparent` (no circle — the icon drawn directly in its own color).
+- **Icon shape** — `Circle` (default) or `Square` (a rounded square,
+  matching `ha-mos-card`'s own icon shape).
 - **Icon background color** — the circle's color in Filled style (also the
   icon's own color in Transparent style, unless overridden below). The
   gauges are colored by value regardless (see below), not by this setting.
@@ -142,6 +144,7 @@ server: 1a2b3c4d5e6f7890abcdef1234567890
 kind: docker
 title: Docker # optional, defaults to the kind's name
 icon_style: filled # filled | transparent
+icon_shape: circle # circle | square
 color: blue # optional; a HA color token ("blue", "primary", ...) or a literal CSS color
 icon_color: white # optional override of the glyph color specifically
 layout: standard # standard | compact | gauge_first
@@ -168,6 +171,7 @@ double_tap_action:
 | `title` | Overrides the kind's display name |
 | `icon` | Overrides the kind's default mdi icon |
 | `icon_style` | `filled` (default, colored circle) or `transparent` (no circle) |
+| `icon_shape` | `circle` (default) or `square` (rounded square) |
 | `color` | Home Assistant color token or literal CSS color for the icon background (filled) or the icon itself (transparent) |
 | `icon_color` | Overrides the icon glyph's own color independently of `color` |
 | `layout` | `standard` (default), `compact`, or `gauge_first` |

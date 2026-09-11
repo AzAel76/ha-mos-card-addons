@@ -29,6 +29,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   title: "Title",
   icon: "Icon",
   icon_style: "Icon style",
+  icon_shape: "Icon shape",
   color: "Icon background color",
   icon_color: "Icon color",
   layout: "Layout",
@@ -51,6 +52,11 @@ const LAYOUT_OPTIONS: SelectOption[] = [
 const ICON_STYLE_OPTIONS: SelectOption[] = [
   { value: "filled", label: "Filled" },
   { value: "transparent", label: "Transparent" },
+];
+
+const ICON_SHAPE_OPTIONS: SelectOption[] = [
+  { value: "circle", label: "Circle" },
+  { value: "square", label: "Square" },
 ];
 
 const LINK_STYLE_OPTIONS: SelectOption[] = [
@@ -133,6 +139,7 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
       { name: "title", selector: { text: {} } },
       { name: "icon", selector: { icon: {} } },
       { name: "icon_style", selector: { select: { mode: "dropdown", options: ICON_STYLE_OPTIONS } } },
+      { name: "icon_shape", selector: { select: { mode: "dropdown", options: ICON_SHAPE_OPTIONS } } },
       { name: "color", selector: { ui_color: {} } },
       { name: "icon_color", selector: { ui_color: {} } },
       { name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } },
@@ -178,6 +185,7 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
     return {
       layout: "standard",
       icon_style: "filled",
+      icon_shape: "circle",
       show_badges: true,
       show_counts: true,
       show_gauge: true,

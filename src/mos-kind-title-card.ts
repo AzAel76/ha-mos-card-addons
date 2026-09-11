@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, formatSigFigs, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.6.0";
+const CARD_VERSION = "1.7.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -272,6 +272,7 @@ export class MosKindTitleCard extends LitElement {
     const linkStyle = this._config.link_style ?? "badge";
     const showContainers = (this._config.show_containers ?? false) && !!kind.containerRatioMetrics;
     const iconStyle = this._config.icon_style ?? "filled";
+    const iconShape = this._config.icon_shape ?? "circle";
     const badgeColor = resolveColor(this._config.color) ?? "var(--primary-color)";
     const iconColor = resolveColor(this._config.icon_color) ?? (iconStyle === "transparent" ? badgeColor : "#fff");
 
@@ -410,7 +411,7 @@ export class MosKindTitleCard extends LitElement {
       >
         <div class="row">
           <div class="icon-wrap">
-            <div class="icon-badge" style="background:${iconStyle === "transparent" ? "transparent" : badgeColor}; color:${iconColor}">
+            <div class="icon-badge icon-badge--${iconShape}" style="background:${iconStyle === "transparent" ? "transparent" : badgeColor}; color:${iconColor}">
               <ha-icon icon=${icon}></ha-icon>
             </div>
             ${showBadges && hasProblem ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
@@ -535,7 +536,6 @@ export class MosKindTitleCard extends LitElement {
     .icon-badge {
       height: 34px;
       width: 34px;
-      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -544,8 +544,14 @@ export class MosKindTitleCard extends LitElement {
         background 0.15s ease,
         color 0.15s ease;
     }
+    .icon-badge--circle {
+      border-radius: 50%;
+    }
+    .icon-badge--square {
+      border-radius: 22%;
+    }
     .icon-badge ha-icon {
-      --mdc-icon-size: 19px;
+      --mdc-icon-size: 24px;
     }
     .corner-badge {
       position: absolute;
@@ -691,7 +697,7 @@ export class MosKindTitleCard extends LitElement {
       width: 26px;
     }
     .layout-compact .icon-badge ha-icon {
-      --mdc-icon-size: 15px;
+      --mdc-icon-size: 18px;
     }
     .layout-compact .corner-badge {
       width: 11px;
