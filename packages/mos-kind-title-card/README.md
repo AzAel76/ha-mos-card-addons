@@ -16,15 +16,21 @@ Built with [Lit](https://lit.dev) + TypeScript, bundled with
 
 ## Screenshots
 
-<!--
-TODO: replace with real screenshots, e.g.:
-![Standard layout](docs/screenshots/standard.png)
-![Compact layout, gauge_first](docs/screenshots/compact-gauge-first.png)
-![GUI editor](docs/screenshots/editor.png)
--->
+**Standard layout:**
 
-_Screenshots coming soon — the standard layout stacked above `ha-mos-card`,
-the `compact`/`gauge_first` layout variants, and the GUI editor._
+![Standard layout](docs/screenshots/Screenshot_standard_layout.png)
+
+**Compact layout** (`layout: compact`):
+
+![Compact layout](docs/screenshots/Screenshot_compact_layout.png)
+
+**Gauge-first layout** (`layout: gauge_first` — swaps the gauges and count column):
+
+![Gauge-first layout](docs/screenshots/Screenshot_gaugefirst_layout.png)
+
+**GUI editor:**
+
+![GUI editor](docs/screenshots/Screenshot_visual_editor.png)
 
 ## Suggested deployment
 
