@@ -1,11 +1,12 @@
 # MOS Kind Title Card
 
-A tiny (~50px) Lovelace title-bar card for Home Assistant, one per
-virtualization "kind" exposed by the [ha-mos](https://github.com/anym001/ha-mos)
-NAS integration: Docker, Compose Stacks, LXC, or Virtual Machines. Meant to
-sit in a `vertical-stack` directly above
-[ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row list for
-that kind, as a compact, glanceable, semi-interactive header — icon, running
+A compact (~50px by default — grows a little taller only if you enable
+enough optional stats to need it) Lovelace title-bar card for Home
+Assistant, one per virtualization "kind" exposed by the
+[ha-mos](https://github.com/anym001/ha-mos) NAS integration: Docker, Compose
+Stacks, LXC, or Virtual Machines. Meant to sit in a `vertical-stack` directly
+above [ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row
+list for that kind, as a glanceable, semi-interactive header — icon, running
 count, update/problem badges, and a memory gauge, left to right.
 
 Built with [Lit](https://lit.dev) + TypeScript, bundled with
@@ -98,14 +99,14 @@ Assistant's native `ha-form`/selector components:
 - **Title** — optional override of the kind's display name.
 - **Icon** — optional override of the kind's default mdi icon.
 - **Accent color** — a Home Assistant color swatch, tinting the icon badge
-  and the gauge's normal-range arc (the warning/error thresholds still take
-  over above 80%/95% regardless).
+  only — the gauges are colored by value (see below), not by this setting.
 - **Layout** — `standard` (default), `compact` (shorter, denser, for tighter
-  dashboards), or `gauge_first` (swaps the gauge and count column).
+  dashboards), or `gauge_first` (swaps the gauges and count column).
 - **Show badges / Show counts / Show memory gauge** — hide any of the three
   right-hand sections for a sparser card.
-- **Show CPU usage** — an extra stat, this kind's aggregate CPU usage summed
-  the same way as memory. Off by default (the card is already fairly dense).
+- **Show CPU usage** — an extra gauge, grouped alongside the memory gauge,
+  for this kind's aggregate CPU usage summed the same way as memory. Off by
+  default (the card is already fairly dense).
 - **Show MOS UI link** — a small tappable link badge on the icon, opening
   this kind's page in MOS's own web UI (not an individual container's own
   web UI — those already have their own link in `ha-mos-card`'s row list).
@@ -177,10 +178,14 @@ double_tap_action:
 - **Count column** — labeled stats: running/total (e.g. "3/5" under
   "Running") and, for Docker/Compose, the exact updates-available count
   under "Updates" (only shown once it's non-zero).
-- **Memory gauge** — a 270° arc with a memory icon in the center, showing
-  this kind's total memory usage (summed across every guest device of that
-  kind) as a percentage of the host's total installed RAM, with the
-  absolute value labeled underneath (e.g. "512.00 MiB" under "Memory").
+- **Gauges** — a memory gauge (a 270° arc with a memory icon in the center)
+  showing this kind's total memory usage (summed across every guest device
+  of that kind) as a percentage of the host's total installed RAM, labeled
+  with the absolute value underneath (e.g. "512.00 MiB" under "Memory").
+  With **Show CPU usage** on, a matching CPU gauge appears right beside it.
+  Both gauges use a fixed traffic-light scale regardless of accent color —
+  green 0–25%, yellow 26–50%, orange 51–75%, red 76–100% — since they're a
+  health indicator, not a branding surface.
 
 Values are normalized to bytes before summing/dividing regardless of what
 display unit (MiB, GiB, or a user-overridden decimal MB/GB) each sensor

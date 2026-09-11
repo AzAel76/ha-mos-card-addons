@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.5.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -345,14 +345,6 @@ export class MosKindTitleCard extends LitElement {
                   </div>
                 `
               : nothing}
-            ${showCpu
-              ? html`
-                  <div class="stat">
-                    <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">${cpuPct !== undefined ? `${cpuPct.toFixed(0)}%` : "–"}</div>
-                    <div class="stat-label">CPU</div>
-                  </div>
-                `
-              : nothing}
             ${showContainers
               ? html`
                   <div class="stat">
@@ -369,17 +361,35 @@ export class MosKindTitleCard extends LitElement {
         `
       : nothing;
 
-    const gaugeBlock = showGauge
-      ? html`
-          <div class="memory">
-            <div class="gauge"><mos-memory-gauge .value=${gaugePct} .color=${accentColor}></mos-memory-gauge></div>
-            <div class="stat">
-              <div class="stat-value">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
-              <div class="stat-label">Memory</div>
+    const gaugesBlock =
+      showCpu || showGauge
+        ? html`
+            <div class="gauges">
+              ${showCpu
+                ? html`
+                    <div class="gauge-item">
+                      <div class="gauge"><mos-memory-gauge .value=${cpuPct} icon="mdi:chip"></mos-memory-gauge></div>
+                      <div class="stat">
+                        <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">${cpuPct !== undefined ? `${cpuPct.toFixed(0)}%` : "–"}</div>
+                        <div class="stat-label">CPU</div>
+                      </div>
+                    </div>
+                  `
+                : nothing}
+              ${showGauge
+                ? html`
+                    <div class="gauge-item">
+                      <div class="gauge"><mos-memory-gauge .value=${gaugePct}></mos-memory-gauge></div>
+                      <div class="stat">
+                        <div class="stat-value">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
+                        <div class="stat-label">Memory</div>
+                      </div>
+                    </div>
+                  `
+                : nothing}
             </div>
-          </div>
-        `
-      : nothing;
+          `
+        : nothing;
 
     return html`
       <ha-card
@@ -412,8 +422,8 @@ export class MosKindTitleCard extends LitElement {
             <div class="title">${title}</div>
             <div class="subtitle" ?data-empty=${!subtitleText}>${subtitleText || " "}</div>
           </div>
-          ${layout === "gauge_first" ? gaugeBlock : countsBlock}
-          ${layout === "gauge_first" ? countsBlock : gaugeBlock}
+          ${layout === "gauge_first" ? gaugesBlock : countsBlock}
+          ${layout === "gauge_first" ? countsBlock : gaugesBlock}
         </div>
       </ha-card>
     `;
@@ -474,12 +484,11 @@ export class MosKindTitleCard extends LitElement {
 
   static styles = css`
     ha-card {
-      height: 50px;
+      min-height: 50px;
       box-sizing: border-box;
       display: flex;
       align-items: center;
-      padding: 0 12px;
-      overflow: hidden;
+      padding: 7px 12px;
       cursor: pointer;
     }
     .empty {
@@ -573,13 +582,20 @@ export class MosKindTitleCard extends LitElement {
       gap: 10px;
       min-width: 0;
     }
-    .memory {
-      flex: 0 0 auto;
+    .gauges {
+      flex: 0 1 auto;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+    .gauge-item {
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .memory .stat {
+    .gauge-item .stat {
       align-items: flex-start;
     }
     .gauge {
@@ -615,8 +631,8 @@ export class MosKindTitleCard extends LitElement {
 
     /* Compact layout: a deliberately shorter, denser variant for tighter dashboards. */
     ha-card.layout-compact {
-      height: 40px;
-      padding: 0 8px;
+      min-height: 40px;
+      padding: 4px 8px;
     }
     .layout-compact .row {
       gap: 6px;
@@ -649,7 +665,8 @@ export class MosKindTitleCard extends LitElement {
       height: 26px;
       width: 26px;
     }
-    .layout-compact .counts {
+    .layout-compact .counts,
+    .layout-compact .gauges {
       gap: 8px;
     }
   `;

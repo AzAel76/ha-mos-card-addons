@@ -24,13 +24,24 @@ const SWEEP_DEGREES = 360 - GAP_DEGREES;
 const ROTATE_DEGREES = 90 + GAP_DEGREES / 2;
 const SWEEP_LENGTH = CIRCUMFERENCE * (SWEEP_DEGREES / 360);
 
+/** A fixed traffic-light scale rather than a theme accent — the gauge is a health indicator, not a branding surface. */
+function severityColor(pct: number): string {
+  if (pct <= 25) {
+    return "var(--green-color, #43a047)";
+  }
+  if (pct <= 50) {
+    return "var(--yellow-color, #fdd835)";
+  }
+  if (pct <= 75) {
+    return "var(--orange-color, #fb8c00)";
+  }
+  return "var(--red-color, #e53935)";
+}
+
 @customElement("mos-memory-gauge")
 export class MosMemoryGauge extends LitElement {
   /** 0-100, or `undefined` for a muted "no data" ring. */
   @property({ type: Number }) public value?: number;
-
-  /** Base color below the warning/error thresholds — those still take priority regardless. */
-  @property({ type: String }) public color?: string;
 
   /** Icon shown in the center of the ring. */
   @property({ type: String }) public icon = "mdi:memory";
@@ -39,13 +50,7 @@ export class MosMemoryGauge extends LitElement {
     const known = typeof this.value === "number" && Number.isFinite(this.value);
     const pct = known ? Math.max(0, Math.min(100, this.value as number)) : 0;
     const valueLength = SWEEP_LENGTH * (pct / 100);
-    const color = !known
-      ? "var(--disabled-color, #9e9e9e)"
-      : pct >= 95
-        ? "var(--error-color, #db4437)"
-        : pct >= 80
-          ? "var(--warning-color, #ff9800)"
-          : this.color || "var(--primary-color)";
+    const color = known ? severityColor(pct) : "var(--disabled-color, #9e9e9e)";
 
     return html`
       <div class="wrap">
