@@ -96,6 +96,7 @@ Assistant's native `ha-form`/selector components:
   `ha-mos-card`'s own editor uses).
 - **Kind** — Docker / Compose Stacks / LXC / Virtual Machines.
 - **Title** — optional override of the kind's display name.
+- **Icon** — optional override of the kind's default mdi icon.
 - **Accent color** — a Home Assistant color swatch, tinting the icon badge
   and the gauge's normal-range arc (the warning/error thresholds still take
   over above 80%/95% regardless).
@@ -136,6 +137,7 @@ double_tap_action:
 | `server` | device_id of the MOS server device (required) |
 | `kind` | One of `docker`, `compose`, `lxc`, `vm` (required) |
 | `title` | Overrides the kind's display name |
+| `icon` | Overrides the kind's default mdi icon |
 | `color` | Home Assistant color token or literal CSS color, tinting the icon badge and gauge |
 | `layout` | `standard` (default), `compact`, or `gauge_first` |
 | `show_badges` / `show_counts` / `show_gauge` | Toggle each section off, default `true` |
@@ -143,16 +145,21 @@ double_tap_action:
 
 ## What it shows
 
-- **Icon** — the kind's icon.
-- **Title + badges** — the kind's name, with a small icon-only badge row
-  underneath: an update badge when any guest of this kind has an update
-  available (Docker/Compose only — LXC/VM report no update info), and a
-  problem badge when any guest reports a `problem`-class binary_sensor.
-- **Count column** — running/total (e.g. "3/5") and, for Docker/Compose, the
-  exact updates-available count.
-- **Memory gauge** — this kind's total memory usage, summed across every
-  guest device of that kind, as a percentage of the host's total installed
-  RAM — plus the absolute value (e.g. "512.00 MiB").
+- **Icon** — the kind's icon (or your override) in a colored circular badge,
+  with a small corner badge for an update (Docker/Compose only — LXC/VM
+  report no update info) and/or a problem (any guest reporting a
+  `problem`-class binary_sensor) — mirroring `ha-mos-card`'s icon-badge
+  convention.
+- **Title + subtitle** — the kind's name, with a short status line beneath
+  it (e.g. "2 updates available", "1 issue") when there's something to
+  report — otherwise blank.
+- **Count column** — labeled stats: running/total (e.g. "3/5" under
+  "Running") and, for Docker/Compose, the exact updates-available count
+  under "Updates" (only shown once it's non-zero).
+- **Memory gauge** — a 270° arc with a memory icon in the center, showing
+  this kind's total memory usage (summed across every guest device of that
+  kind) as a percentage of the host's total installed RAM, with the
+  absolute value labeled underneath (e.g. "512.00 MiB" under "Memory").
 
 Values are normalized to bytes before summing/dividing regardless of what
 display unit (MiB, GiB, or a user-overridden decimal MB/GB) each sensor

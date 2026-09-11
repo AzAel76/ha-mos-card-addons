@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -207,6 +207,7 @@ export class MosKindTitleCard extends LitElement {
 
   private _renderCard(kind: KindDef, resolved: Resolved) {
     const title = this._config.title || kind.name;
+    const icon = this._config.icon || kind.icon;
     const hass = this.hass;
     const layout = this._config.layout ?? "standard";
     const showBadges = this._config.show_badges ?? true;
@@ -219,11 +220,19 @@ export class MosKindTitleCard extends LitElement {
     // Only shown once there's actually an update — "0 updates" is noise, not information.
     const hasUpdates = typeof updatesCount === "number" && Number.isFinite(updatesCount) && updatesCount > 0;
 
-    const hasProblem = resolved.problemEntities.some((entityId) => {
+    const problemCount = resolved.problemEntities.filter((entityId) => {
       const stateObj = hass.states[entityId];
       return stateObj?.attributes.device_class === "problem" && stateObj.state === "on";
-    });
-    const hasAnyBadge = hasUpdates || hasProblem;
+    }).length;
+    const hasProblem = problemCount > 0;
+
+    // Beneath the title, ha-mos-card-style: a short line of secondary info.
+    // Problem outranks an update — it's the more urgent thing to surface.
+    const subtitleText = hasProblem
+      ? `${problemCount} issue${problemCount === 1 ? "" : "s"}`
+      : hasUpdates
+        ? `${updatesCount} update${updatesCount === 1 ? "" : "s"} available`
+        : "";
 
     const runningEntityId = resolved.summaryEntities.running;
     const totalEntityId = resolved.summaryEntities.total;
@@ -254,11 +263,19 @@ export class MosKindTitleCard extends LitElement {
     const countsBlock = showCounts
       ? html`
           <div class="counts">
-            ${hasCountRow
-              ? html`<div class="count-row">${runningState ?? "–"}${totalState !== undefined ? html`/${totalState}` : nothing}</div>`
-              : html`<div class="count-row muted">–</div>`}
+            <div class="stat">
+              <div class="stat-value ${!hasCountRow ? "muted" : ""}">
+                ${hasCountRow ? html`${runningState ?? "–"}${totalState !== undefined ? html`/${totalState}` : nothing}` : "–"}
+              </div>
+              <div class="stat-label">Running</div>
+            </div>
             ${hasUpdates
-              ? html`<div class="count-row"><ha-icon icon="mdi:update"></ha-icon>${updatesCount}</div>`
+              ? html`
+                  <div class="stat">
+                    <div class="stat-value">${updatesCount}</div>
+                    <div class="stat-label">Updates</div>
+                  </div>
+                `
               : nothing}
           </div>
         `
@@ -268,7 +285,10 @@ export class MosKindTitleCard extends LitElement {
       ? html`
           <div class="memory">
             <div class="gauge"><mos-memory-gauge .value=${gaugePct} .color=${accentColor}></mos-memory-gauge></div>
-            <div class="memory-label">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
+            <div class="stat">
+              <div class="stat-value">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
+              <div class="stat-label">Memory</div>
+            </div>
           </div>
         `
       : nothing;
@@ -281,20 +301,16 @@ export class MosKindTitleCard extends LitElement {
         @pointercancel=${this._onPointerCancel}
       >
         <div class="row">
-          <div class="icon-badge" style="background:${accentColor}">
-            <ha-icon icon=${kind.icon}></ha-icon>
+          <div class="icon-wrap">
+            <div class="icon-badge" style="background:${accentColor}">
+              <ha-icon icon=${icon}></ha-icon>
+            </div>
+            ${showBadges && hasProblem ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
+            ${showBadges && hasUpdates ? html`<ha-icon class="corner-badge update" icon="mdi:update"></ha-icon>` : nothing}
           </div>
           <div class="title-col">
             <div class="title">${title}</div>
-            ${showBadges
-              ? html`
-                  <div class="badges" ?data-empty=${!hasAnyBadge}>
-                    ${hasUpdates ? html`<ha-icon class="badge update" icon="mdi:update"></ha-icon>` : nothing}
-                    ${hasProblem ? html`<ha-icon class="badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
-                    ${!hasAnyBadge ? html`<ha-icon class="badge placeholder" icon="mdi:circle-small"></ha-icon>` : nothing}
-                  </div>
-                `
-              : nothing}
+            <div class="subtitle" ?data-empty=${!subtitleText}>${subtitleText || " "}</div>
           </div>
           ${layout === "gauge_first" ? gaugeBlock : countsBlock}
           ${layout === "gauge_first" ? countsBlock : gaugeBlock}
@@ -375,8 +391,11 @@ export class MosKindTitleCard extends LitElement {
       width: 100%;
       min-width: 0;
     }
-    .icon-badge {
+    .icon-wrap {
+      position: relative;
       flex: 0 0 auto;
+    }
+    .icon-badge {
       height: 34px;
       width: 34px;
       border-radius: 50%;
@@ -387,6 +406,28 @@ export class MosKindTitleCard extends LitElement {
     }
     .icon-badge ha-icon {
       --mdc-icon-size: 19px;
+    }
+    .corner-badge {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      --mdc-icon-size: 10px;
+      color: #fff;
+      box-shadow: 0 0 0 2px var(--card-background-color, #1c1c1c);
+    }
+    .corner-badge.problem {
+      top: -2px;
+      right: -2px;
+      background: var(--error-color, #db4437);
+    }
+    .corner-badge.update {
+      bottom: -2px;
+      right: -2px;
+      background: var(--info-color, #039be5);
     }
     .title-col {
       flex: 1 1 auto;
@@ -400,44 +441,22 @@ export class MosKindTitleCard extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .badges {
-      height: 13px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    .subtitle {
+      font-size: 10px;
+      line-height: 1.3;
+      color: var(--secondary-text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .badges[data-empty] {
+    .subtitle[data-empty] {
       visibility: hidden;
-    }
-    .badge {
-      --mdc-icon-size: 13px;
-    }
-    .badge.update {
-      color: var(--info-color, #039be5);
-    }
-    .badge.problem {
-      color: var(--error-color, #db4437);
     }
     .counts {
       flex: 0 0 auto;
       display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 1px;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
-    .count-row {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      white-space: nowrap;
-    }
-    .count-row.muted {
-      opacity: 0.6;
-    }
-    .count-row ha-icon {
-      --mdc-icon-size: 12px;
+      flex-direction: row;
+      gap: 12px;
     }
     .memory {
       flex: 0 0 auto;
@@ -445,13 +464,36 @@ export class MosKindTitleCard extends LitElement {
       align-items: center;
       gap: 6px;
     }
+    .memory .stat {
+      align-items: flex-start;
+    }
     .gauge {
       height: 34px;
       width: 34px;
       flex: 0 0 auto;
     }
-    .memory-label {
-      font-size: 12px;
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+    }
+    .stat-value {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .stat-value.muted {
+      opacity: 0.5;
+      font-weight: 400;
+    }
+    .stat-label {
+      font-size: 8.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
       color: var(--secondary-text-color);
       white-space: nowrap;
     }
@@ -471,22 +513,29 @@ export class MosKindTitleCard extends LitElement {
     .layout-compact .icon-badge ha-icon {
       --mdc-icon-size: 15px;
     }
+    .layout-compact .corner-badge {
+      width: 11px;
+      height: 11px;
+      --mdc-icon-size: 8px;
+    }
     .layout-compact .title {
       font-size: 13px;
     }
-    .layout-compact .badges {
-      height: 11px;
+    .layout-compact .subtitle {
+      font-size: 9px;
     }
-    .layout-compact .badge {
-      --mdc-icon-size: 11px;
-    }
-    .layout-compact .counts,
-    .layout-compact .memory-label {
+    .layout-compact .stat-value {
       font-size: 11px;
+    }
+    .layout-compact .stat-label {
+      font-size: 7.5px;
     }
     .layout-compact .gauge {
       height: 26px;
       width: 26px;
+    }
+    .layout-compact .counts {
+      gap: 8px;
     }
   `;
 }

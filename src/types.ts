@@ -10,6 +10,8 @@ export interface MosKindTitleCardConfig extends LovelaceCardConfig {
   kind?: KindId;
   /** Overrides the kind's display name. */
   title?: string;
+  /** Overrides the kind's default mdi icon. */
+  icon?: string;
   /** A Home Assistant named color token (e.g. "blue", "primary") or a literal CSS color. Tints the icon badge and the gauge's normal-range arc. */
   color?: string;
   /** Default "standard". "compact" is deliberately shorter than 50px for denser dashboards. */
