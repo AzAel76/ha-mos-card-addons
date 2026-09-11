@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions correspond to `mos-server-summary-card-v*` tags/releases in this repo
 (see the [Releasing](../../CLAUDE.md#releasing) section).
 
+## [0.1.1](https://github.com/AzAel76/ha-mos-card-addons/compare/mos-server-summary-card-v0.1.0...mos-server-summary-card-v0.1.1) (2026-09-11)
+
+
+### Features
+
+* add mos-server-summary-card package ([d6720df](https://github.com/AzAel76/ha-mos-card-addons/commit/d6720df31ad4538648a6942ab63e7c03fbd65a13))
+* refine mos-server-summary-card after first round of testing ([e0490e4](https://github.com/AzAel76/ha-mos-card-addons/commit/e0490e4ca1075b456b651fb0b303a441ffbdf713))
+
+
+### Bug Fixes
+
+* annotate CARD_VERSION so release-please actually bumps it ([cba9da5](https://github.com/AzAel76/ha-mos-card-addons/commit/cba9da5117d1698ecb780cfe4d844de45184f53f))
+* correct sparkline distortion, memory bug, and broken tap actions ([8dfeb43](https://github.com/AzAel76/ha-mos-card-addons/commit/8dfeb4352c37fb8e7bb9eb1742fe6efbcecc1c13))
+* strip renamed prefixes from pool display names ([f6360d5](https://github.com/AzAel76/ha-mos-card-addons/commit/f6360d5647a3f1855ee731721780197f5312cb48))
+
 ## [Unreleased]
 
 ### Added

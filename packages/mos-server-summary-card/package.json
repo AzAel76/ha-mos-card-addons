@@ -1,6 +1,6 @@
 {
   "name": "mos-server-summary-card",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A compact Home Assistant Lovelace summary card for one ha-mos server: identity/version info, live CPU/memory gauges with history, storage pool usage, and CPU temperature.",
   "type": "module",
   "scripts": {
