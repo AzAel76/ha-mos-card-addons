@@ -5,7 +5,8 @@ import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 import type { UnsubscribeFunc } from "home-assistant-js-websocket";
 import "./gauge";
 import "./sparkline";
-import type { MosServerSummaryCardConfig } from "./types";
+import { DEFAULT_SECTION_ORDER } from "./types";
+import type { MosServerSummaryCardConfig, SectionId } from "./types";
 import {
   entitiesByDevice,
   findMetricEntity,
@@ -45,6 +46,8 @@ import {
 import { fetchHistory, HistoryBuffer } from "./history";
 import type { HistoryPoint } from "./history";
 import { formatBytes, formatSigFigs } from "./unit";
+import { GestureTracker, resolveActionTokens } from "./gesture";
+import type { GestureAction } from "./gesture";
 
 const CARD_VERSION = "0.1.0"; // x-release-please-version
 
@@ -58,6 +61,13 @@ interface PoolInfo {
   name: string;
   usageEntity?: string;
   problemEntity?: string;
+}
+
+interface ServiceItem {
+  icon: string;
+  label: string;
+  state: "on" | "off" | "warning";
+  tooltip: string;
 }
 
 /** What discovery resolved for the current server. Recomputed only when the registries or config change, never on a bare `hass` tick. */
@@ -122,6 +132,46 @@ function relativeTime(date: Date): string {
   return "just now";
 }
 
+function elapsedParts(bootDate: Date): { days: number; hours: number; minutes: number } {
+  const totalSeconds = Math.max(0, (Date.now() - bootDate.getTime()) / 1000);
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+  };
+}
+
+/** "2d 4h 13m" — drops leading zero units, matching relativeTime's largest-unit-first convention but keeping all remaining ones. */
+function formatUptimeCompact(bootDate: Date): string {
+  const { days, hours, minutes } = elapsedParts(bootDate);
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return "just now";
+}
+
+/** "2 days, 4 hours, 13 minutes" — same elapsed time, full words, only non-zero units. */
+function formatUptimeVerbose(bootDate: Date): string {
+  const { days, hours, minutes } = elapsedParts(bootDate);
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(`${days} day${days === 1 ? "" : "s"}`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+  }
+  return parts.length > 0 ? parts.join(", ") : "just now";
+}
+
 @customElement("mos-server-summary-card")
 export class MosServerSummaryCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -141,6 +191,11 @@ export class MosServerSummaryCard extends LitElement {
   private _lastCpuSample?: number;
   private _lastMemorySample?: number;
 
+  /** One gesture tracker per pool (keyed by its display name), persisted across renders so a mid-gesture re-render doesn't reset an in-flight hold/double-tap timer. */
+  private _poolGestures = new Map<string, GestureTracker>();
+  private _cpuTempGesture = new GestureTracker();
+  private _cardGesture = new GestureTracker();
+
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     await import("./editor");
     return document.createElement("mos-server-summary-card-editor") as unknown as LovelaceCardEditor;
@@ -158,12 +213,13 @@ export class MosServerSummaryCard extends LitElement {
   }
 
   // Deliberately no getLayoutOptions() with a fixed grid_rows: this card's
-  // real height varies with which sections are enabled and how many pools
-  // are discovered, and a static grid_rows that's usually-but-not-always
-  // correct is exactly the bug mos-kind-title-card had to fix (a lie the
-  // layout engine can't detect, so excess content bleeds into whatever's
-  // below it instead of the engine reserving space for it). Leaving it
-  // unset lets the platform fall back to its own default sizing behavior.
+  // real height varies with which sections are enabled, their order, and
+  // how many pools are discovered, and a static grid_rows that's
+  // usually-but-not-always correct is exactly the bug mos-kind-title-card
+  // had to fix (a lie the layout engine can't detect, so excess content
+  // bleeds into whatever's below it instead of the engine reserving space
+  // for it). Leaving it unset lets the platform fall back to its own
+  // default sizing behavior.
   public getCardSize(): number {
     return 4;
   }
@@ -356,6 +412,66 @@ export class MosServerSummaryCard extends LitElement {
     return buffer.get();
   }
 
+  private _getPoolGesture(name: string): GestureTracker {
+    let tracker = this._poolGestures.get(name);
+    if (!tracker) {
+      tracker = new GestureTracker();
+      this._poolGestures.set(name, tracker);
+    }
+    return tracker;
+  }
+
+  private _poolActionConfig(action: GestureAction) {
+    switch (action) {
+      case "tap":
+        return this._config.pool_tap_action;
+      case "hold":
+        return this._config.pool_hold_action;
+      case "double_tap":
+        return this._config.pool_double_tap_action;
+    }
+  }
+
+  private _firePoolAction(pool: PoolInfo, action: GestureAction): void {
+    const actionConfig = this._poolActionConfig(action);
+    if (!actionConfig) {
+      return;
+    }
+    const tokens = {
+      pool_name: pool.name,
+      pool_usage_entity: pool.usageEntity ?? "",
+      pool_problem_entity: pool.problemEntity ?? "",
+    };
+    const resolvedAction = resolveActionTokens(actionConfig, tokens);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handleAction(this, this.hass, { [`${action}_action`]: resolvedAction } as any, action);
+  }
+
+  private _cpuTempActionConfig(action: GestureAction) {
+    switch (action) {
+      case "tap":
+        return this._config.cpu_temp_tap_action;
+      case "hold":
+        return this._config.cpu_temp_hold_action;
+      case "double_tap":
+        return this._config.cpu_temp_double_tap_action;
+    }
+  }
+
+  private _fireCpuTempAction(resolved: Resolved, action: GestureAction): void {
+    const actionConfig = this._cpuTempActionConfig(action);
+    if (!actionConfig) {
+      return;
+    }
+    const tokens = {
+      server_name: resolved.serverName,
+      cpu_temp_entity: resolved.cpuTemperatureEntity ?? "",
+    };
+    const resolvedAction = resolveActionTokens(actionConfig, tokens);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handleAction(this, this.hass, { [`${action}_action`]: resolvedAction } as any, action);
+  }
+
   protected render() {
     if (!this._config || !this.hass) {
       return nothing;
@@ -381,24 +497,46 @@ export class MosServerSummaryCard extends LitElement {
     const hass = this.hass;
     const title = this._config.title || resolved.serverName;
 
+    const imageSize = this._config.image_size ?? 40;
     const showUptime = this._config.show_uptime ?? true;
+    const uptimeStyle = this._config.uptime_style ?? "relative";
     const showInfo = this._config.show_info ?? true;
     const showCpuMetric = this._config.show_cpu_metric ?? true;
     const showMemoryMetric = this._config.show_memory_metric ?? true;
+    const sparklineShowValueScale = this._config.sparkline_show_value_scale ?? false;
+    const sparklineShowTimeScale = this._config.sparkline_show_time_scale ?? false;
     const showPools = this._config.show_pools ?? true;
     const showCpuTemp = this._config.show_cpu_temp ?? true;
     const showNetwork = this._config.show_network ?? true;
     const showServices = this._config.show_services ?? true;
+    const servicesStyle = this._config.services_style ?? "compact";
     const showDiskHealth = this._config.show_disk_health ?? true;
     const showGuestStatus = this._config.show_guest_status ?? true;
+    const guestStatusStyle = this._config.guest_status_style ?? "badges";
+    const poolHasActions = !!(
+      this._config.pool_tap_action ||
+      this._config.pool_hold_action ||
+      this._config.pool_double_tap_action
+    );
+    const cpuTempHasActions = !!(
+      this._config.cpu_temp_tap_action ||
+      this._config.cpu_temp_hold_action ||
+      this._config.cpu_temp_double_tap_action
+    );
 
     // --- Header ---
     const bootTimeState = resolved.bootTimeEntity ? hass.states[resolved.bootTimeEntity] : undefined;
     const bootDate = bootTimeState?.state ? new Date(bootTimeState.state) : undefined;
-    const uptimeText =
-      bootDate && !Number.isNaN(bootDate.getTime()) ? `Boot time · ${relativeTime(bootDate)}` : undefined;
+    const bootValid = bootDate && !Number.isNaN(bootDate.getTime());
+    const uptimeText = bootValid
+      ? uptimeStyle === "relative"
+        ? `Boot time · ${relativeTime(bootDate)}`
+        : `Uptime · ${uptimeStyle === "uptime_compact" ? formatUptimeCompact(bootDate) : formatUptimeVerbose(bootDate)}`
+      : undefined;
 
-    const guestUpdatesCount = sumStates(hass, [resolved.dockerUpdatesEntity, resolved.composeUpdatesEntity]);
+    const dockerUpdatesCount = sumStates(hass, [resolved.dockerUpdatesEntity]);
+    const composeUpdatesCount = sumStates(hass, [resolved.composeUpdatesEntity]);
+    const guestUpdatesCount = dockerUpdatesCount + composeUpdatesCount;
     const guestProblemCount = resolved.guestProblemEntities.filter((entityId) => {
       const stateObj = hass.states[entityId];
       return stateObj?.attributes.device_class === "problem" && stateObj.state === "on";
@@ -434,7 +572,7 @@ export class MosServerSummaryCard extends LitElement {
       ? Number(hass.states[resolved.cpuTemperatureEntity]?.state)
       : undefined;
 
-    // --- Status strip ---
+    // --- Status strip inputs ---
     const tailscaleOn = resolved.tailscaleOnlineEntity
       ? hass.states[resolved.tailscaleOnlineEntity]?.state === "on"
       : false;
@@ -450,7 +588,7 @@ export class MosServerSummaryCard extends LitElement {
             <div class="info-item">
               <div class="info-icon-wrap">
                 <ha-icon class="info-icon" icon="mdi:tag"></ha-icon>
-                ${mosUpdateAvailable ? html`<span class="corner-badge update"></span>` : nothing}
+                ${mosUpdateAvailable ? html`<span class="corner-badge"></span>` : nothing}
               </div>
               <div class="info-text">
                 <div class="info-label">MOS Version</div>
@@ -521,7 +659,10 @@ export class MosServerSummaryCard extends LitElement {
                         </div>
                         <mos-sparkline
                           class="sparkline"
+                          style="height: ${sparklineShowTimeScale ? "40px" : "30px"}"
                           .points=${cpuPoints ?? []}
+                          .showValueScale=${sparklineShowValueScale}
+                          .showTimeScale=${sparklineShowTimeScale}
                           color="var(--red-color, #e53935)"
                         ></mos-sparkline>
                       </div>
@@ -545,7 +686,10 @@ export class MosServerSummaryCard extends LitElement {
                         </div>
                         <mos-sparkline
                           class="sparkline"
+                          style="height: ${sparklineShowTimeScale ? "40px" : "30px"}"
                           .points=${memoryPoints ?? []}
+                          .showValueScale=${sparklineShowValueScale}
+                          .showTimeScale=${sparklineShowTimeScale}
                           color="var(--info-color, #039be5)"
                         ></mos-sparkline>
                       </div>
@@ -556,6 +700,8 @@ export class MosServerSummaryCard extends LitElement {
           `
         : nothing;
 
+    const cpuTempHandlers = this._cpuTempGesture.handlers((action) => this._fireCpuTempAction(resolved, action));
+
     const bottomRow =
       showPools || showCpuTemp
         ? html`
@@ -565,8 +711,17 @@ export class MosServerSummaryCard extends LitElement {
                   ? resolved.pools.map((pool) => {
                       const usagePct = pool.usageEntity ? Number(hass.states[pool.usageEntity]?.state) : undefined;
                       const problem = pool.problemEntity ? hass.states[pool.problemEntity]?.state === "on" : false;
+                      const label = this._config.pool_labels?.[pool.name] ?? `${pool.name} Pool Usage`;
+                      const handlers = this._getPoolGesture(pool.name).handlers((action) =>
+                        this._firePoolAction(pool, action),
+                      );
                       return html`
-                        <div class="pill">
+                        <div
+                          class="pill"
+                          @pointerdown=${poolHasActions ? handlers.onPointerDown : undefined}
+                          @pointerup=${poolHasActions ? handlers.onPointerUp : undefined}
+                          @pointercancel=${poolHasActions ? handlers.onPointerCancel : undefined}
+                        >
                           <div class="pill-gauge">
                             <mos-server-gauge .value=${problem ? 100 : usagePct} icon="mdi:database"></mos-server-gauge>
                           </div>
@@ -578,7 +733,7 @@ export class MosServerSummaryCard extends LitElement {
                                   : "–"
                               }
                             </div>
-                            <div class="pill-label">${pool.name} Pool Usage</div>
+                            <div class="pill-label">${label}</div>
                           </div>
                         </div>
                       `;
@@ -588,7 +743,12 @@ export class MosServerSummaryCard extends LitElement {
               ${
                 showCpuTemp
                   ? html`
-                      <div class="pill">
+                      <div
+                        class="pill"
+                        @pointerdown=${cpuTempHasActions ? cpuTempHandlers.onPointerDown : undefined}
+                        @pointerup=${cpuTempHasActions ? cpuTempHandlers.onPointerUp : undefined}
+                        @pointercancel=${cpuTempHasActions ? cpuTempHandlers.onPointerCancel : undefined}
+                      >
                         <ha-icon class="pill-icon" icon="mdi:thermometer"></ha-icon>
                         <div class="pill-text">
                           <div class="pill-value">
@@ -608,65 +768,172 @@ export class MosServerSummaryCard extends LitElement {
           `
         : nothing;
 
-    const statusBadges: unknown[] = [];
+    // --- Guest status section ---
+    const guestMessages: string[] = [];
+    if (dockerUpdatesCount > 0) {
+      guestMessages.push(`${dockerUpdatesCount} Docker update${dockerUpdatesCount === 1 ? "" : "s"} pending`);
+    }
+    if (composeUpdatesCount > 0) {
+      guestMessages.push(`${composeUpdatesCount} Compose update${composeUpdatesCount === 1 ? "" : "s"} pending`);
+    }
+    if (guestProblemCount > 0) {
+      guestMessages.push(`${guestProblemCount} guest issue${guestProblemCount === 1 ? "" : "s"} reported`);
+    }
+
+    const guestStatusSection =
+      showGuestStatus && (guestUpdatesCount > 0 || guestProblemCount > 0)
+        ? html`
+            <div class="guest-status">
+              ${
+                guestStatusStyle === "badges"
+                  ? html`
+                      ${
+                        guestUpdatesCount > 0
+                          ? html`
+                              <div class="guest-badge update">
+                                <ha-icon icon="mdi:update"></ha-icon>
+                                <span>${guestUpdatesCount} update${guestUpdatesCount === 1 ? "" : "s"}</span>
+                              </div>
+                            `
+                          : nothing
+                      }
+                      ${
+                        guestProblemCount > 0
+                          ? html`
+                              <div class="guest-badge problem">
+                                <ha-icon icon="mdi:alert-circle"></ha-icon>
+                                <span>${guestProblemCount} issue${guestProblemCount === 1 ? "" : "s"}</span>
+                              </div>
+                            `
+                          : nothing
+                      }
+                    `
+                  : guestStatusStyle === "text"
+                    ? html`<div class="guest-text">${guestMessages.join(" · ")}</div>`
+                    : html`
+                        <div class="guest-ticker">
+                          <div class="guest-ticker-track">
+                            <span>${guestMessages.join("   •   ")}</span>
+                            <span>${guestMessages.join("   •   ")}</span>
+                          </div>
+                        </div>
+                      `
+              }
+            </div>
+          `
+        : nothing;
+
+    // --- Services section ---
+    const serviceItems: ServiceItem[] = [];
     if (showNetwork && tailscaleOn) {
-      statusBadges.push(
-        html`<ha-icon class="status-badge on" icon="mdi:lan-connect" title="Tailscale online"></ha-icon>`,
-      );
+      serviceItems.push({ icon: "mdi:lan-connect", label: "Tailscale", state: "on", tooltip: "Tailscale online" });
     }
     if (showNetwork && netbirdOn) {
-      statusBadges.push(
-        html`<ha-icon class="status-badge on" icon="mdi:lan-connect" title="Netbird online"></ha-icon>`,
-      );
+      serviceItems.push({ icon: "mdi:lan-connect", label: "Netbird", state: "on", tooltip: "Netbird online" });
     }
     if (showServices) {
-      statusBadges.push(
-        html`<ha-icon
-          class="status-badge ${sshOn ? "on" : "off"}"
-          icon="mdi:ssh"
-          title="SSH ${sshOn ? "enabled" : "disabled"}"
-        ></ha-icon>`,
-        html`<ha-icon
-          class="status-badge ${sambaOn ? "on" : "off"}"
-          icon="mdi:folder-network"
-          title="Samba ${sambaOn ? "enabled" : "disabled"}"
-        ></ha-icon>`,
-        html`<ha-icon
-          class="status-badge ${nfsOn ? "on" : "off"}"
-          icon="mdi:folder-network-outline"
-          title="NFS ${nfsOn ? "enabled" : "disabled"}"
-        ></ha-icon>`,
-      );
+      serviceItems.push({
+        icon: "mdi:ssh",
+        label: "SSH",
+        state: sshOn ? "on" : "off",
+        tooltip: `SSH ${sshOn ? "enabled" : "disabled"}`,
+      });
+      serviceItems.push({
+        icon: "mdi:folder-network",
+        label: "Samba",
+        state: sambaOn ? "on" : "off",
+        tooltip: `Samba ${sambaOn ? "enabled" : "disabled"}`,
+      });
+      serviceItems.push({
+        icon: "mdi:folder-network-outline",
+        label: "NFS",
+        state: nfsOn ? "on" : "off",
+        tooltip: `NFS ${nfsOn ? "enabled" : "disabled"}`,
+      });
     }
     if (showDiskHealth && diskWarning) {
-      statusBadges.push(
-        html`<ha-icon class="status-badge warning" icon="mdi:harddisk-alert" title="Disk SMART warning"></ha-icon>`,
-      );
+      serviceItems.push({ icon: "mdi:harddisk-alert", label: "Disk", state: "warning", tooltip: "Disk SMART warning" });
     }
-    const statusStrip = statusBadges.length > 0 ? html`<div class="status-strip">${statusBadges}</div>` : nothing;
+    const stateWord = (state: ServiceItem["state"]) =>
+      state === "warning" ? "Warning" : state === "on" ? "On" : "Off";
+
+    const servicesSection =
+      serviceItems.length > 0
+        ? html`
+            <div class="services services-${servicesStyle}">
+              ${serviceItems.map((item) => {
+                if (servicesStyle === "detailed") {
+                  return html`
+                    <div class="service-row ${item.state}">
+                      <ha-icon icon=${item.icon}></ha-icon>
+                      <span class="service-row-label">${item.label}</span>
+                      <span class="service-row-state">${stateWord(item.state)}</span>
+                    </div>
+                  `;
+                }
+                if (servicesStyle === "labeled") {
+                  return html`
+                    <div class="service-chip ${item.state}" title=${item.tooltip}>
+                      <ha-icon icon=${item.icon}></ha-icon>
+                      <span>${item.label} ${stateWord(item.state)}</span>
+                    </div>
+                  `;
+                }
+                return html`<ha-icon
+                  class="service-icon ${item.state}"
+                  icon=${item.icon}
+                  title=${item.tooltip}
+                ></ha-icon>`;
+              })}
+            </div>
+          `
+        : nothing;
+
+    // --- Assemble sections in the configured order (header excluded, always first) ---
+    const sectionResults: Partial<Record<SectionId, unknown>> = {
+      info: infoGrid,
+      metrics: metricsSection,
+      pools_temp: bottomRow,
+      guest_status: guestStatusSection,
+      services: servicesSection,
+    };
+    const configuredOrder = this._config.section_order;
+    const order = configuredOrder && configuredOrder.length > 0 ? configuredOrder : DEFAULT_SECTION_ORDER;
+    const seen = new Set<SectionId>();
+    const orderedSections: unknown[] = [];
+    for (const id of order) {
+      if (!seen.has(id) && id in sectionResults) {
+        seen.add(id);
+        orderedSections.push(sectionResults[id]);
+      }
+    }
+    // A stale/hand-edited order missing a newer section id still shows it, appended.
+    for (const id of DEFAULT_SECTION_ORDER) {
+      if (!seen.has(id)) {
+        orderedSections.push(sectionResults[id]);
+      }
+    }
+
+    const cardGestureHandlers = this._cardGesture.handlers((action) => {
+      handleAction(this, this.hass, this._config, action);
+    });
 
     return html`
       <ha-card
-        @pointerdown=${this._onPointerDown}
-        @pointerup=${this._onPointerUp}
-        @pointercancel=${this._onPointerCancel}
+        @pointerdown=${cardGestureHandlers.onPointerDown}
+        @pointerup=${cardGestureHandlers.onPointerUp}
+        @pointercancel=${cardGestureHandlers.onPointerCancel}
       >
         <div class="header">
-          <div class="image-wrap">
+          <div class="image-wrap" style="width:${imageSize}px;height:${imageSize}px">
             ${
               this._config.image
                 ? html`<img class="header-image" src=${this._config.image} alt="" />`
-                : html`<ha-icon class="header-image-fallback" icon="mdi:server"></ha-icon>`
-            }
-            ${
-              showGuestStatus && guestProblemCount > 0
-                ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>`
-                : nothing
-            }
-            ${
-              showGuestStatus && guestUpdatesCount > 0
-                ? html`<ha-icon class="corner-badge update" icon="mdi:update"></ha-icon>`
-                : nothing
+                : html`<ha-icon
+                    class="header-image-fallback"
+                    icon="mdi:server"
+                    style="--mdc-icon-size:${imageSize}px"
+                  ></ha-icon>`
             }
           </div>
           <div class="title-col">
@@ -674,57 +941,9 @@ export class MosServerSummaryCard extends LitElement {
           </div>
           ${showUptime && uptimeText ? html`<div class="uptime">${uptimeText}</div>` : nothing}
         </div>
-        ${infoGrid} ${metricsSection} ${bottomRow} ${statusStrip}
+        ${orderedSections}
       </ha-card>
     `;
-  }
-
-  private _holdTimer?: ReturnType<typeof setTimeout>;
-  private _holdFired = false;
-  private _clickTimer?: ReturnType<typeof setTimeout>;
-  private _clickCount = 0;
-
-  private _onPointerDown = (): void => {
-    this._holdFired = false;
-    this._holdTimer = setTimeout(() => {
-      this._holdFired = true;
-      this._fireAction("hold");
-    }, 500);
-  };
-
-  private _onPointerUp = (): void => {
-    if (this._holdTimer) {
-      clearTimeout(this._holdTimer);
-      this._holdTimer = undefined;
-    }
-    if (this._holdFired) {
-      return;
-    }
-    this._clickCount += 1;
-    if (this._clickCount === 1) {
-      this._clickTimer = setTimeout(() => {
-        this._clickCount = 0;
-        this._fireAction("tap");
-      }, 250);
-    } else {
-      clearTimeout(this._clickTimer);
-      this._clickCount = 0;
-      this._fireAction("double_tap");
-    }
-  };
-
-  private _onPointerCancel = (): void => {
-    if (this._holdTimer) {
-      clearTimeout(this._holdTimer);
-      this._holdTimer = undefined;
-    }
-  };
-
-  private _fireAction(action: "tap" | "hold" | "double_tap"): void {
-    if (!this._config) {
-      return;
-    }
-    handleAction(this, this.hass, this._config, action);
   }
 
   static styles = css`
@@ -751,8 +970,6 @@ export class MosServerSummaryCard extends LitElement {
     .image-wrap {
       position: relative;
       flex: 0 0 auto;
-      width: 40px;
-      height: 40px;
     }
     .header-image {
       width: 100%;
@@ -762,37 +979,21 @@ export class MosServerSummaryCard extends LitElement {
     .header-image-fallback {
       width: 100%;
       height: 100%;
-      --mdc-icon-size: 40px;
       color: var(--secondary-text-color);
     }
-    .corner-badge {
+    .info-icon-wrap {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .info-icon-wrap .corner-badge {
       position: absolute;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      --mdc-icon-size: 10px;
-      color: #fff;
-      box-shadow: 0 0 0 2px var(--card-background-color, #1c1c1c);
-    }
-    .corner-badge.problem {
-      top: -2px;
-      right: -2px;
-      background: var(--error-color, #db4437);
-    }
-    .corner-badge.update {
-      bottom: -2px;
-      right: -2px;
-      background: var(--info-color, #039be5);
-    }
-    .info-icon-wrap .corner-badge.update {
       top: -1px;
       right: -1px;
-      bottom: auto;
       width: 8px;
       height: 8px;
+      border-radius: 50%;
+      background: var(--info-color, #039be5);
+      box-shadow: 0 0 0 2px var(--card-background-color, #1c1c1c);
     }
     .title-col {
       flex: 1 1 auto;
@@ -822,10 +1023,6 @@ export class MosServerSummaryCard extends LitElement {
       align-items: center;
       gap: 8px;
       min-width: 0;
-    }
-    .info-icon-wrap {
-      position: relative;
-      flex: 0 0 auto;
     }
     .info-icon {
       flex: 0 0 auto;
@@ -890,7 +1087,6 @@ export class MosServerSummaryCard extends LitElement {
     }
     .sparkline {
       flex: 1 1 auto;
-      height: 30px;
       min-width: 0;
     }
     .bottom-row {
@@ -927,22 +1123,107 @@ export class MosServerSummaryCard extends LitElement {
       color: var(--secondary-text-color);
       white-space: nowrap;
     }
-    .status-strip {
+    .guest-status {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .guest-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+    }
+    .guest-badge ha-icon {
+      --mdc-icon-size: 14px;
+    }
+    .guest-badge.update {
+      color: var(--info-color, #039be5);
+    }
+    .guest-badge.problem {
+      color: var(--error-color, #db4437);
+    }
+    .guest-text {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+    }
+    .guest-ticker {
+      overflow: hidden;
+      white-space: nowrap;
+      width: 100%;
+    }
+    .guest-ticker-track {
+      display: inline-flex;
+      animation: guest-ticker-scroll 15s linear infinite;
+    }
+    .guest-ticker-track span {
+      padding-right: 40px;
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    @keyframes guest-ticker-scroll {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(-50%);
+      }
+    }
+    .services {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
-    .status-badge {
+    .services-detailed {
+      flex-direction: column;
+      gap: 4px;
+    }
+    .service-icon {
       --mdc-icon-size: 16px;
     }
-    .status-badge.on {
+    .service-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+    }
+    .service-chip ha-icon {
+      --mdc-icon-size: 14px;
+    }
+    .service-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .service-row ha-icon {
+      --mdc-icon-size: 16px;
+      flex: 0 0 auto;
+    }
+    .service-row-label {
+      flex: 1 1 auto;
+    }
+    .service-row-state {
+      font-size: 10px;
+      color: var(--secondary-text-color);
+    }
+    .services .on {
       color: var(--green-color, #43a047);
     }
-    .status-badge.off {
+    .services .off {
       color: var(--disabled-color, #9e9e9e);
       opacity: 0.6;
     }
-    .status-badge.warning {
+    .services .warning {
       color: var(--red-color, #e53935);
     }
   `;
