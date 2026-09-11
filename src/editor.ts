@@ -27,7 +27,18 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   server: "MOS server",
   kind: "Kind",
   title: "Title",
+  color: "Accent color",
+  layout: "Layout",
+  show_badges: "Show badges",
+  show_counts: "Show counts",
+  show_gauge: "Show memory gauge",
 };
+
+const LAYOUT_OPTIONS: SelectOption[] = [
+  { value: "standard", label: "Standard" },
+  { value: "compact", label: "Compact" },
+  { value: "gauge_first", label: "Gauge first" },
+];
 
 @customElement("mos-kind-title-card-editor")
 export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEditor {
@@ -101,6 +112,11 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
         },
       },
       { name: "title", selector: { text: {} } },
+      { name: "color", selector: { ui_color: {} } },
+      { name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } },
+      { name: "show_badges", selector: { boolean: {} } },
+      { name: "show_counts", selector: { boolean: {} } },
+      { name: "show_gauge", selector: { boolean: {} } },
       { name: "tap_action", selector: { ui_action: {} } },
       { name: "hold_action", selector: { ui_action: {} } },
       { name: "double_tap_action", selector: { ui_action: {} } },
@@ -115,12 +131,28 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._config}
+        .data=${this._data(this._config)}
         .schema=${this._schema()}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
     `;
+  }
+
+  /**
+   * Defaults filled in for display only — these must match the card's own
+   * `?? true` / `?? "standard"` fallbacks in mos-kind-title-card.ts, or the
+   * editor would show a toggle's default state while the card behaves
+   * differently.
+   */
+  private _data(config: MosKindTitleCardConfig): MosKindTitleCardConfig {
+    return {
+      layout: "standard",
+      show_badges: true,
+      show_counts: true,
+      show_gauge: true,
+      ...config,
+    };
   }
 
   private _computeLabel = (schema: Schema): string => {

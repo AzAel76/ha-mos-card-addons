@@ -20,7 +20,15 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
+
+/** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
+function resolveColor(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return /^[a-z-]+$/i.test(value) ? `var(--${value}-color)` : value;
+}
 
 // eslint-disable-next-line no-console
 console.info(
@@ -200,16 +208,22 @@ export class MosKindTitleCard extends LitElement {
   private _renderCard(kind: KindDef, resolved: Resolved) {
     const title = this._config.title || kind.name;
     const hass = this.hass;
+    const layout = this._config.layout ?? "standard";
+    const showBadges = this._config.show_badges ?? true;
+    const showCounts = this._config.show_counts ?? true;
+    const showGauge = this._config.show_gauge ?? true;
+    const accentColor = resolveColor(this._config.color) ?? "var(--primary-color)";
 
     const updatesEntityId = resolved.summaryEntities.updates;
     const updatesCount = updatesEntityId ? Number(hass.states[updatesEntityId]?.state) : undefined;
-    const hasUpdateBadge = typeof updatesCount === "number" && Number.isFinite(updatesCount) && updatesCount > 0;
+    // Only shown once there's actually an update — "0 updates" is noise, not information.
+    const hasUpdates = typeof updatesCount === "number" && Number.isFinite(updatesCount) && updatesCount > 0;
 
-    const hasProblemBadge = resolved.problemEntities.some((entityId) => {
+    const hasProblem = resolved.problemEntities.some((entityId) => {
       const stateObj = hass.states[entityId];
       return stateObj?.attributes.device_class === "problem" && stateObj.state === "on";
     });
-    const hasAnyBadge = hasUpdateBadge || hasProblemBadge;
+    const hasAnyBadge = hasUpdates || hasProblem;
 
     const runningEntityId = resolved.summaryEntities.running;
     const totalEntityId = resolved.summaryEntities.total;
@@ -237,34 +251,53 @@ export class MosKindTitleCard extends LitElement {
         ? Math.min(100, (memoryBytes / totalBytes) * 100)
         : undefined;
 
+    const countsBlock = showCounts
+      ? html`
+          <div class="counts">
+            ${hasCountRow
+              ? html`<div class="count-row">${runningState ?? "–"}${totalState !== undefined ? html`/${totalState}` : nothing}</div>`
+              : html`<div class="count-row muted">–</div>`}
+            ${hasUpdates
+              ? html`<div class="count-row"><ha-icon icon="mdi:update"></ha-icon>${updatesCount}</div>`
+              : nothing}
+          </div>
+        `
+      : nothing;
+
+    const gaugeBlock = showGauge
+      ? html`
+          <div class="memory">
+            <div class="gauge"><mos-memory-gauge .value=${gaugePct} .color=${accentColor}></mos-memory-gauge></div>
+            <div class="memory-label">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
+          </div>
+        `
+      : nothing;
+
     return html`
       <ha-card
+        class="layout-${layout}"
         @pointerdown=${this._onPointerDown}
         @pointerup=${this._onPointerUp}
         @pointercancel=${this._onPointerCancel}
       >
         <div class="row">
-          <div class="icon"><ha-icon icon=${kind.icon}></ha-icon></div>
+          <div class="icon-badge" style="background:${accentColor}">
+            <ha-icon icon=${kind.icon}></ha-icon>
+          </div>
           <div class="title-col">
             <div class="title">${title}</div>
-            <div class="badges" ?data-empty=${!hasAnyBadge}>
-              ${hasUpdateBadge ? html`<ha-icon class="badge update" icon="mdi:update"></ha-icon>` : nothing}
-              ${hasProblemBadge ? html`<ha-icon class="badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
-              ${!hasAnyBadge ? html`<ha-icon class="badge placeholder" icon="mdi:circle-small"></ha-icon>` : nothing}
-            </div>
-          </div>
-          <div class="counts">
-            ${hasCountRow
-              ? html`<div class="count-row">${runningState ?? "–"}${totalState !== undefined ? html`/${totalState}` : nothing}</div>`
-              : html`<div class="count-row muted">–</div>`}
-            ${updatesEntityId
-              ? html`<div class="count-row"><ha-icon icon="mdi:update"></ha-icon>${hass.states[updatesEntityId]?.state ?? "–"}</div>`
+            ${showBadges
+              ? html`
+                  <div class="badges" ?data-empty=${!hasAnyBadge}>
+                    ${hasUpdates ? html`<ha-icon class="badge update" icon="mdi:update"></ha-icon>` : nothing}
+                    ${hasProblem ? html`<ha-icon class="badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
+                    ${!hasAnyBadge ? html`<ha-icon class="badge placeholder" icon="mdi:circle-small"></ha-icon>` : nothing}
+                  </div>
+                `
               : nothing}
           </div>
-          <div class="memory">
-            <div class="gauge"><mos-memory-gauge .value=${gaugePct}></mos-memory-gauge></div>
-            <div class="memory-label">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
-          </div>
+          ${layout === "gauge_first" ? gaugeBlock : countsBlock}
+          ${layout === "gauge_first" ? countsBlock : gaugeBlock}
         </div>
       </ha-card>
     `;
@@ -338,21 +371,22 @@ export class MosKindTitleCard extends LitElement {
     .row {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       width: 100%;
       min-width: 0;
     }
-    .icon {
+    .icon-badge {
       flex: 0 0 auto;
-      height: 32px;
-      width: 32px;
+      height: 34px;
+      width: 34px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--state-icon-color, var(--paper-item-icon-color));
+      color: #fff;
     }
-    .icon ha-icon {
-      --mdc-icon-size: 28px;
+    .icon-badge ha-icon {
+      --mdc-icon-size: 19px;
     }
     .title-col {
       flex: 1 1 auto;
@@ -367,7 +401,7 @@ export class MosKindTitleCard extends LitElement {
       white-space: nowrap;
     }
     .badges {
-      height: 14px;
+      height: 13px;
       display: flex;
       align-items: center;
       gap: 4px;
@@ -392,7 +426,6 @@ export class MosKindTitleCard extends LitElement {
       gap: 1px;
       font-size: 12px;
       color: var(--secondary-text-color);
-      min-width: 34px;
     }
     .count-row {
       display: flex;
@@ -421,6 +454,39 @@ export class MosKindTitleCard extends LitElement {
       font-size: 12px;
       color: var(--secondary-text-color);
       white-space: nowrap;
+    }
+
+    /* Compact layout: a deliberately shorter, denser variant for tighter dashboards. */
+    ha-card.layout-compact {
+      height: 40px;
+      padding: 0 8px;
+    }
+    .layout-compact .row {
+      gap: 6px;
+    }
+    .layout-compact .icon-badge {
+      height: 26px;
+      width: 26px;
+    }
+    .layout-compact .icon-badge ha-icon {
+      --mdc-icon-size: 15px;
+    }
+    .layout-compact .title {
+      font-size: 13px;
+    }
+    .layout-compact .badges {
+      height: 11px;
+    }
+    .layout-compact .badge {
+      --mdc-icon-size: 11px;
+    }
+    .layout-compact .counts,
+    .layout-compact .memory-label {
+      font-size: 11px;
+    }
+    .layout-compact .gauge {
+      height: 26px;
+      width: 26px;
     }
   `;
 }

@@ -20,6 +20,9 @@ export class MosMemoryGauge extends LitElement {
   /** 0-100, or `undefined` for a muted "no data" ring. */
   @property({ type: Number }) public value?: number;
 
+  /** Base color below the warning/error thresholds — those still take priority regardless. */
+  @property({ type: String }) public color?: string;
+
   protected render() {
     const known = typeof this.value === "number" && Number.isFinite(this.value);
     const pct = known ? Math.max(0, Math.min(100, this.value as number)) : 0;
@@ -30,7 +33,7 @@ export class MosMemoryGauge extends LitElement {
         ? "var(--error-color, #db4437)"
         : pct >= 80
           ? "var(--warning-color, #ff9800)"
-          : "var(--primary-color)";
+          : this.color || "var(--primary-color)";
 
     return html`
       <svg viewBox="0 0 ${SIZE} ${SIZE}">
