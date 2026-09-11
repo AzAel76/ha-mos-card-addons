@@ -38,11 +38,13 @@ export interface KindDef {
   /** The per-guest cpu_usage entity, summed across every guest of this kind. */
   readonly cpuMetric: MetricDef;
   /**
-   * The per-guest "state" entity — only docker/compose guests carry a
-   * `web_ui_url` attribute on theirs (confirmed against ha-mos-card's own
-   * source comments; LXC/VM guests have no web UI to link to).
+   * The path segment of this kind's page in MOS's own web UI, appended to
+   * the server device's `configuration_url` (e.g. `http://host/docker`).
+   * Compose shares Docker's page since stacks run under the docker engine.
+   * Overridable per-card via the `link_path` config option, in case a given
+   * MOS version or setup differs.
    */
-  readonly linkStateMetric?: MetricDef;
+  readonly uiPath: string;
   /** Per-stack container running/total (compose only — the containers *within* a stack, distinct from stacks running/total). */
   readonly containerRatioMetrics?: { readonly running: MetricDef; readonly total: MetricDef };
   /**
@@ -65,11 +67,6 @@ const cpuMetric = (prefix: string): MetricDef => ({
   keySuffix: "cpu_usage",
 });
 
-const stateMetric = (prefix: string): MetricDef => ({
-  translationKey: `${prefix}_state`,
-  keySuffix: "state",
-});
-
 // PR-114 sensors have key === translation_key, so the unique_id fallback
 // suffix is the full translation key text, not a short shared suffix.
 const summarySensor = (id: SummarySensorId, translationKey: string, label: string): SummarySensorDef => ({
@@ -87,7 +84,7 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     icon: "mdi:docker",
     memoryMetric: memoryMetric("docker"),
     cpuMetric: cpuMetric("docker"),
-    linkStateMetric: stateMetric("docker"),
+    uiPath: "docker",
     summarySensors: [
       summarySensor("running", "docker_containers_running", "Running"),
       summarySensor("total", "docker_containers_total", "Total"),
@@ -101,7 +98,8 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     icon: "mdi:layers-triple",
     memoryMetric: memoryMetric("compose"),
     cpuMetric: cpuMetric("compose"),
-    linkStateMetric: stateMetric("compose"),
+    // Compose stacks run under the docker engine and share Docker's own page in MOS's web UI — confirmed, not a guess.
+    uiPath: "docker",
     containerRatioMetrics: {
       running: { translationKey: "compose_running_containers", keySuffix: "running_containers" },
       total: { translationKey: "compose_container_count", keySuffix: "container_count" },
@@ -119,6 +117,7 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     icon: "mdi:server",
     memoryMetric: memoryMetric("lxc"),
     cpuMetric: cpuMetric("lxc"),
+    uiPath: "lxc",
     summarySensors: [
       summarySensor("running", "lxc_containers_running", "Running"),
       summarySensor("total", "lxc_containers_total", "Total"),
@@ -131,6 +130,7 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     icon: "mdi:monitor",
     memoryMetric: memoryMetric("vm"),
     cpuMetric: cpuMetric("vm"),
+    uiPath: "vm",
     summarySensors: [
       summarySensor("running", "vm_machines_running", "Running"),
       summarySensor("total", "vm_machines_total", "Total"),

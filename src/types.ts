@@ -21,8 +21,10 @@ export interface MosKindTitleCardConfig extends LovelaceCardConfig {
   show_gauge?: boolean;
   /** An extra aggregate CPU-usage stat, summed the same way as memory. Default false. */
   show_cpu?: boolean;
-  /** A tappable link badge when a guest exposes a web UI (docker/compose only). Default true. */
+  /** A tappable badge linking to this kind's page in MOS's own web UI. Default true. */
   show_link?: boolean;
+  /** Overrides the kind's default URL path segment (e.g. "docker"), in case MOS's actual path differs. */
+  link_path?: string;
   /** The containers-within-stacks ratio, distinct from stacks running/total (compose only). Default false. */
   show_containers?: boolean;
   tap_action?: ActionConfig;

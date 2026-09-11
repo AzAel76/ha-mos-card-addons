@@ -34,7 +34,8 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   show_counts: "Show counts",
   show_gauge: "Show memory gauge",
   show_cpu: "Show CPU usage",
-  show_link: "Show web UI link",
+  show_link: "Show MOS UI link",
+  link_path: "Link path override",
   show_containers: "Show container count",
 };
 
@@ -124,10 +125,10 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
       { name: "show_counts", selector: { boolean: {} } },
       { name: "show_gauge", selector: { boolean: {} } },
       { name: "show_cpu", selector: { boolean: {} } },
-      // Only docker/compose guests carry a web UI link; only compose has a
-      // containers-within-stacks ratio distinct from stacks running/total —
-      // these fields are simply omitted for kinds that couldn't use them.
-      ...(kind?.linkStateMetric ? [{ name: "show_link", selector: { boolean: {} } }] : []),
+      { name: "show_link", selector: { boolean: {} } },
+      { name: "link_path", selector: { text: {} } },
+      // Only compose has a containers-within-stacks ratio distinct from
+      // stacks running/total — omitted for kinds that couldn't use it.
       ...(kind?.containerRatioMetrics ? [{ name: "show_containers", selector: { boolean: {} } }] : []),
       { name: "tap_action", selector: { ui_action: {} } },
       { name: "hold_action", selector: { ui_action: {} } },

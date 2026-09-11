@@ -106,10 +106,14 @@ Assistant's native `ha-form`/selector components:
   right-hand sections for a sparser card.
 - **Show CPU usage** — an extra stat, this kind's aggregate CPU usage summed
   the same way as memory. Off by default (the card is already fairly dense).
-- **Show web UI link** (Docker/Compose only) — a small tappable link badge
-  on the icon when any guest exposes a web UI, opening it directly. On by
-  default; simply never appears for kinds with no web UI (LXC/VM) or when
-  no guest has one.
+- **Show MOS UI link** — a small tappable link badge on the icon, opening
+  this kind's page in MOS's own web UI (not an individual container's own
+  web UI — those already have their own link in `ha-mos-card`'s row list).
+  Built from the server device's `configuration_url` plus a per-kind path:
+  `/docker` for both Docker and Compose (stacks run under the docker
+  engine and share its page), `/lxc`, and `/vm`. Override the path per-card
+  with **Link path override** if a given MOS version differs. On by
+  default; simply doesn't appear if the server has no `configuration_url`.
 - **Show container count** (Compose only) — the containers-within-stacks
   ratio (distinct from stacks running/total), as an extra stat. Off by
   default.
@@ -134,7 +138,8 @@ show_badges: true
 show_counts: true
 show_gauge: true
 show_cpu: false
-show_link: true # docker/compose only
+show_link: true
+link_path: docker # optional override; defaults to docker/lxc/vm per kind
 show_containers: false # compose only
 tap_action:
   action: none
@@ -154,7 +159,8 @@ double_tap_action:
 | `layout` | `standard` (default), `compact`, or `gauge_first` |
 | `show_badges` / `show_counts` / `show_gauge` | Toggle each section off, default `true` |
 | `show_cpu` | Extra aggregate CPU-usage stat, default `false` |
-| `show_link` | Tappable web UI link badge (docker/compose only), default `true` |
+| `show_link` | Tappable badge linking to this kind's page in MOS's own web UI, default `true` |
+| `link_path` | Overrides the kind's default URL path segment (`docker`/`lxc`/`vm`) |
 | `show_containers` | Containers-within-stacks ratio (compose only), default `false` |
 | `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) |
 

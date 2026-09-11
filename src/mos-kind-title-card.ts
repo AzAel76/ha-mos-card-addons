@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.4.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -54,14 +54,14 @@ console.info(
 /** What discovery resolved for the current server + kind. Recomputed only when the registries or config change, never on a bare `hass` tick. */
 interface Resolved {
   serverFound: boolean;
+  /** The server device's own web UI base URL, for linking to its per-kind pages. */
+  serverConfigurationUrl?: string;
   memoryTotalEntity?: string;
   guestCount: number;
   summaryEntities: Partial<Record<SummarySensorId, string>>;
   memoryEntities: string[];
   cpuEntities: string[];
   problemEntities: string[];
-  /** Per-guest "state" entities (docker/compose only) — checked at render time for a `web_ui_url` attribute. */
-  linkStateEntities: string[];
   /** Per-stack containers running/total (compose only). */
   containerRunningEntities: string[];
   containerTotalEntities: string[];
@@ -159,7 +159,9 @@ export class MosKindTitleCard extends LitElement {
       return undefined;
     }
 
-    const serverFound = findServerDevices(this._devices).some((device) => device.id === serverId);
+    const serverDevices = findServerDevices(this._devices);
+    const serverDevice = serverDevices.find((device) => device.id === serverId);
+    const serverFound = serverDevice !== undefined;
     const byDevice = entitiesByDevice(this._entities);
 
     const serverEntities = byDevice.get(serverId) ?? [];
@@ -177,7 +179,6 @@ export class MosKindTitleCard extends LitElement {
     const memoryEntities: string[] = [];
     const cpuEntities: string[] = [];
     const problemEntities: string[] = [];
-    const linkStateEntities: string[] = [];
     const containerRunningEntities: string[] = [];
     const containerTotalEntities: string[] = [];
     for (const guest of guests) {
@@ -191,13 +192,6 @@ export class MosKindTitleCard extends LitElement {
       const cpu = findMetricEntity(guestEntities, kind.cpuMetric);
       if (cpu) {
         cpuEntities.push(cpu.entity_id);
-      }
-
-      if (kind.linkStateMetric) {
-        const stateEntity = findMetricEntity(guestEntities, kind.linkStateMetric);
-        if (stateEntity) {
-          linkStateEntities.push(stateEntity.entity_id);
-        }
       }
 
       if (kind.containerRatioMetrics) {
@@ -218,13 +212,13 @@ export class MosKindTitleCard extends LitElement {
 
     return {
       serverFound,
+      serverConfigurationUrl: serverDevice?.configuration_url ?? undefined,
       memoryTotalEntity,
       guestCount: guests.length,
       summaryEntities,
       memoryEntities,
       cpuEntities,
       problemEntities,
-      linkStateEntities,
       containerRunningEntities,
       containerTotalEntities,
     };
@@ -274,7 +268,7 @@ export class MosKindTitleCard extends LitElement {
     const showCounts = this._config.show_counts ?? true;
     const showGauge = this._config.show_gauge ?? true;
     const showCpu = this._config.show_cpu ?? false;
-    const showLink = (this._config.show_link ?? true) && !!kind.linkStateMetric;
+    const showLink = this._config.show_link ?? true;
     const showContainers = (this._config.show_containers ?? false) && !!kind.containerRatioMetrics;
     const accentColor = resolveColor(this._config.color) ?? "var(--primary-color)";
 
@@ -325,16 +319,10 @@ export class MosKindTitleCard extends LitElement {
 
     const cpuPct = showCpu && hasGuests ? sumStates(hass, resolved.cpuEntities) : undefined;
 
-    let linkUrl: string | undefined;
-    if (showLink) {
-      for (const entityId of resolved.linkStateEntities) {
-        const url = hass.states[entityId]?.attributes.web_ui_url as string | undefined;
-        if (url) {
-          linkUrl = url;
-          break;
-        }
-      }
-    }
+    const linkUrl =
+      showLink && resolved.serverConfigurationUrl
+        ? `${resolved.serverConfigurationUrl.replace(/\/+$/, "")}/${(this._config.link_path || kind.uiPath).replace(/^\/+/, "")}`
+        : undefined;
 
     const containersRunning = showContainers ? sumStates(hass, resolved.containerRunningEntities) : undefined;
     const containersTotal = showContainers ? sumStates(hass, resolved.containerTotalEntities) : undefined;
@@ -412,6 +400,7 @@ export class MosKindTitleCard extends LitElement {
                   <ha-icon
                     class="corner-badge link"
                     icon="mdi:open-in-new"
+                    title=${linkUrl}
                     @pointerdown=${(e: Event) => e.stopPropagation()}
                     @pointerup=${(e: Event) => e.stopPropagation()}
                     @click=${(e: Event) => this._openLink(e, linkUrl as string)}

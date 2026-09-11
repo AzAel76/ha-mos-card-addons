@@ -25,6 +25,8 @@ export interface DeviceRegistryEntry {
   model_id: string | null;
   via_device_id: string | null;
   disabled_by: string | null;
+  /** The MOS server's own web UI base URL — used to link to its per-kind pages (e.g. `/docker`). */
+  configuration_url: string | null;
 }
 
 export interface EntityRegistryEntry {
