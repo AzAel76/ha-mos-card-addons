@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
       entry: resolve(__dirname, "src/mos-kind-title-card.ts"),
       name: "MosKindTitleCard",
       formats: ["es"],
-      fileName: () => "mos-summary-card.js",
+      fileName: () => "mos-kind-title-card.js",
     },
     outDir: "dist",
     emptyOutDir: true,

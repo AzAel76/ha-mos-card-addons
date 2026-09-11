@@ -8,9 +8,16 @@ This is an npm-workspaces monorepo of independent Home Assistant Lovelace
 card addons for the [ha-mos](https://github.com/anym001/ha-mos) NAS
 integration and its companion [ha-mos-card](https://github.com/anym001/ha-mos-card).
 Each addon lives under `packages/<name>/` as a fully standalone package
-(own `package.json`, `dist/` build, `hacs.json`, README) that gets
-distributed/installed independently as a HACS custom repository. There is
-currently one package: `packages/mos-kind-title-card`.
+(own `package.json`, `dist/` build, README). There is currently one
+package: `packages/mos-kind-title-card`.
+
+**HACS constraint:** HACS reads `hacs.json` only from the repository
+root, never from a subdirectory — so the root [hacs.json](hacs.json)
+(kept in sync with `packages/mos-kind-title-card/hacs.json`) is what
+actually makes this repo installable as a HACS custom repository. This
+only works cleanly because there is one package; if a second addon ever
+needs independent HACS distribution, it will need its own repository
+rather than living here as another `packages/*` entry.
 
 ## Commands
 
@@ -94,3 +101,13 @@ Source layout (`packages/mos-kind-title-card/src/`):
 Full config option reference and rendered-output description live in
 `packages/mos-kind-title-card/README.md` — read it before changing config
 schema or visual behavior, since the two must stay in sync.
+
+## Releasing
+
+Pushing a tag matching `mos-kind-title-card-v*` runs
+[.github/workflows/release-mos-kind-title-card.yml](.github/workflows/release-mos-kind-title-card.yml),
+which builds the package and attaches `dist/mos-kind-title-card.js` to a
+GitHub release for that tag — the asset name `hacs.json`'s `filename`
+field expects. Bump `CARD_VERSION` in `mos-kind-title-card.ts` and
+`version` in the package's `package.json` (keep them equal) before
+tagging.

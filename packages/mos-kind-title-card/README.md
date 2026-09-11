@@ -36,7 +36,7 @@ npm install
 npm run dev
 ```
 
-This runs Vite in watch mode and writes `dist/mos-summary-card.js` on every
+This runs Vite in watch mode and writes `dist/mos-kind-title-card.js` on every
 change. Home Assistant loads the card as a plain JS module resource, so
 there's no hot-reload into the HA frontend itself — after each build you
 need to get the file onto your HA instance and **hard-refresh the browser**
@@ -46,8 +46,8 @@ is the most common "why isn't my change showing up" cause.
 
 Two ways to get the built file onto your HA instance:
 
-1. **Manual** — copy `dist/mos-summary-card.js` into
-   `<config>/www/community/mos-summary-card/` yourself (e.g. via Samba, the
+1. **Manual** — copy `dist/mos-kind-title-card.js` into
+   `<config>/www/community/mos-kind-title-card/` yourself (e.g. via Samba, the
    Studio Code Server add-on, or scp).
 2. **Scripted** — copy `.env.example` to `.env`, set `HA_HOST` (and
    `HA_CONFIG_PATH` if not `/config`), then run:
@@ -57,7 +57,7 @@ Two ways to get the built file onto your HA instance:
    ```
 
    This builds and `scp`s the file to
-   `www/community/mos-summary-card/mos-summary-card.js` over SSH. Requires
+   `www/community/mos-kind-title-card/mos-kind-title-card.js` over SSH. Requires
    SSH access to the machine running Home Assistant (add-on SSH, HA OS SSH
    add-on, or a container host).
 
@@ -65,7 +65,7 @@ Two ways to get the built file onto your HA instance:
 
 Settings → Dashboards → ⋮ → Resources → Add Resource:
 
-- URL: `/local/community/mos-summary-card/mos-summary-card.js`
+- URL: `/local/community/mos-kind-title-card/mos-kind-title-card.js`
 - Resource type: JavaScript Module
 
 Then add a card with `type: custom:mos-kind-title-card`, or use the GUI
@@ -216,7 +216,14 @@ default.
 
 ## Publishing / HACS
 
-This repo includes `hacs.json` so it can be added to Home Assistant as a
-[HACS](https://hacs.xyz) custom repository (category: Dashboard) once it's
-pushed to GitHub and has a tagged release with `dist/mos-summary-card.js`
-attached.
+The repo root's `hacs.json` (HACS reads it from the repository root, not
+from this package directory) lets the repo be added to Home Assistant as a
+[HACS](https://hacs.xyz) custom repository (category: Dashboard).
+
+Releases are built and published automatically: pushing a tag matching
+`mos-kind-title-card-v*` (e.g. `mos-kind-title-card-v0.1.0`) triggers
+[.github/workflows/release-mos-kind-title-card.yml](../../.github/workflows/release-mos-kind-title-card.yml),
+which builds the package and attaches `dist/mos-kind-title-card.js` to a
+GitHub release for that tag — the exact asset `hacs.json`'s `filename`
+points at. Before tagging, bump both `CARD_VERSION` in
+`src/mos-kind-title-card.ts` and `version` in `package.json` to match.

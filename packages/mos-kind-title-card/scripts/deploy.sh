@@ -16,14 +16,14 @@ fi
 : "${HA_HOST:?Set HA_HOST (e.g. homeassistant.local or a user@host SSH target)}"
 : "${HA_CONFIG_PATH:=/config}"
 
-DEST_DIR="$HA_CONFIG_PATH/www/community/mos-summary-card"
+DEST_DIR="$HA_CONFIG_PATH/www/community/mos-kind-title-card"
 
 npm run build
 
-echo "Deploying dist/mos-summary-card.js to $HA_HOST:$DEST_DIR"
+echo "Deploying dist/mos-kind-title-card.js to $HA_HOST:$DEST_DIR"
 ssh "$HA_HOST" "mkdir -p '$DEST_DIR'"
-scp dist/mos-summary-card.js "$HA_HOST:$DEST_DIR/mos-summary-card.js"
+scp dist/mos-kind-title-card.js "$HA_HOST:$DEST_DIR/mos-kind-title-card.js"
 
 echo "Done. Add/refresh the Lovelace resource:"
-echo "  URL:  /local/community/mos-summary-card/mos-summary-card.js"
+echo "  URL:  /local/community/mos-kind-title-card/mos-kind-title-card.js"
 echo "  Type: JavaScript Module"
