@@ -104,6 +104,15 @@ Assistant's native `ha-form`/selector components:
   dashboards), or `gauge_first` (swaps the gauge and count column).
 - **Show badges / Show counts / Show memory gauge** — hide any of the three
   right-hand sections for a sparser card.
+- **Show CPU usage** — an extra stat, this kind's aggregate CPU usage summed
+  the same way as memory. Off by default (the card is already fairly dense).
+- **Show web UI link** (Docker/Compose only) — a small tappable link badge
+  on the icon when any guest exposes a web UI, opening it directly. On by
+  default; simply never appears for kinds with no web UI (LXC/VM) or when
+  no guest has one.
+- **Show container count** (Compose only) — the containers-within-stacks
+  ratio (distinct from stacks running/total), as an extra stat. Off by
+  default.
 - **Tap / Hold / Double-tap action** — standard Home Assistant action
   pickers (the card is tap/hold/double-tap interactive).
 
@@ -124,6 +133,9 @@ layout: standard # standard | compact | gauge_first
 show_badges: true
 show_counts: true
 show_gauge: true
+show_cpu: false
+show_link: true # docker/compose only
+show_containers: false # compose only
 tap_action:
   action: none
 hold_action:
@@ -141,6 +153,9 @@ double_tap_action:
 | `color` | Home Assistant color token or literal CSS color, tinting the icon badge and gauge |
 | `layout` | `standard` (default), `compact`, or `gauge_first` |
 | `show_badges` / `show_counts` / `show_gauge` | Toggle each section off, default `true` |
+| `show_cpu` | Extra aggregate CPU-usage stat, default `false` |
+| `show_link` | Tappable web UI link badge (docker/compose only), default `true` |
+| `show_containers` | Containers-within-stacks ratio (compose only), default `false` |
 | `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) |
 
 ## What it shows

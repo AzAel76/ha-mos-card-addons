@@ -33,6 +33,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   show_badges: "Show badges",
   show_counts: "Show counts",
   show_gauge: "Show memory gauge",
+  show_cpu: "Show CPU usage",
+  show_link: "Show web UI link",
+  show_containers: "Show container count",
 };
 
 const LAYOUT_OPTIONS: SelectOption[] = [
@@ -96,6 +99,7 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
   }
 
   private _schema(): Schema[] {
+    const kind = this._config?.kind ? KIND_DEFS[this._config.kind] : undefined;
     return [
       {
         name: "server",
@@ -119,6 +123,12 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
       { name: "show_badges", selector: { boolean: {} } },
       { name: "show_counts", selector: { boolean: {} } },
       { name: "show_gauge", selector: { boolean: {} } },
+      { name: "show_cpu", selector: { boolean: {} } },
+      // Only docker/compose guests carry a web UI link; only compose has a
+      // containers-within-stacks ratio distinct from stacks running/total —
+      // these fields are simply omitted for kinds that couldn't use them.
+      ...(kind?.linkStateMetric ? [{ name: "show_link", selector: { boolean: {} } }] : []),
+      ...(kind?.containerRatioMetrics ? [{ name: "show_containers", selector: { boolean: {} } }] : []),
       { name: "tap_action", selector: { ui_action: {} } },
       { name: "hold_action", selector: { ui_action: {} } },
       { name: "double_tap_action", selector: { ui_action: {} } },
@@ -153,6 +163,9 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
       show_badges: true,
       show_counts: true,
       show_gauge: true,
+      show_cpu: false,
+      show_link: true,
+      show_containers: false,
       ...config,
     };
   }

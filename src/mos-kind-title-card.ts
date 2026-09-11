@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.3.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -28,6 +28,20 @@ function resolveColor(value: string | undefined): string | undefined {
     return undefined;
   }
   return /^[a-z-]+$/i.test(value) ? `var(--${value}-color)` : value;
+}
+
+/** Sums the plain numeric state of each entity (no unit conversion — used for percentages/counts, not data sizes). */
+function sumStates(hass: HomeAssistant, entityIds: readonly string[]): number | undefined {
+  let sum = 0;
+  let any = false;
+  for (const entityId of entityIds) {
+    const n = Number(hass.states[entityId]?.state);
+    if (Number.isFinite(n)) {
+      sum += n;
+      any = true;
+    }
+  }
+  return any ? sum : undefined;
 }
 
 // eslint-disable-next-line no-console
@@ -44,7 +58,13 @@ interface Resolved {
   guestCount: number;
   summaryEntities: Partial<Record<SummarySensorId, string>>;
   memoryEntities: string[];
+  cpuEntities: string[];
   problemEntities: string[];
+  /** Per-guest "state" entities (docker/compose only) — checked at render time for a `web_ui_url` attribute. */
+  linkStateEntities: string[];
+  /** Per-stack containers running/total (compose only). */
+  containerRunningEntities: string[];
+  containerTotalEntities: string[];
 }
 
 @customElement("mos-kind-title-card")
@@ -155,19 +175,59 @@ export class MosKindTitleCard extends LitElement {
 
     const guests = serverFound ? selectGuestDevices(this._devices, kind, serverId) : [];
     const memoryEntities: string[] = [];
+    const cpuEntities: string[] = [];
     const problemEntities: string[] = [];
+    const linkStateEntities: string[] = [];
+    const containerRunningEntities: string[] = [];
+    const containerTotalEntities: string[] = [];
     for (const guest of guests) {
       const guestEntities = byDevice.get(guest.id) ?? [];
+
       const memory = findMetricEntity(guestEntities, kind.memoryMetric);
       if (memory) {
         memoryEntities.push(memory.entity_id);
       }
+
+      const cpu = findMetricEntity(guestEntities, kind.cpuMetric);
+      if (cpu) {
+        cpuEntities.push(cpu.entity_id);
+      }
+
+      if (kind.linkStateMetric) {
+        const stateEntity = findMetricEntity(guestEntities, kind.linkStateMetric);
+        if (stateEntity) {
+          linkStateEntities.push(stateEntity.entity_id);
+        }
+      }
+
+      if (kind.containerRatioMetrics) {
+        const runningEntity = findMetricEntity(guestEntities, kind.containerRatioMetrics.running);
+        if (runningEntity) {
+          containerRunningEntities.push(runningEntity.entity_id);
+        }
+        const totalEntity = findMetricEntity(guestEntities, kind.containerRatioMetrics.total);
+        if (totalEntity) {
+          containerTotalEntities.push(totalEntity.entity_id);
+        }
+      }
+
       for (const candidate of findProblemBinarySensors(guestEntities)) {
         problemEntities.push(candidate.entity_id);
       }
     }
 
-    return { serverFound, memoryTotalEntity, guestCount: guests.length, summaryEntities, memoryEntities, problemEntities };
+    return {
+      serverFound,
+      memoryTotalEntity,
+      guestCount: guests.length,
+      summaryEntities,
+      memoryEntities,
+      cpuEntities,
+      problemEntities,
+      linkStateEntities,
+      containerRunningEntities,
+      containerTotalEntities,
+    };
   }
 
   public getCardSize(): number {
@@ -213,6 +273,9 @@ export class MosKindTitleCard extends LitElement {
     const showBadges = this._config.show_badges ?? true;
     const showCounts = this._config.show_counts ?? true;
     const showGauge = this._config.show_gauge ?? true;
+    const showCpu = this._config.show_cpu ?? false;
+    const showLink = (this._config.show_link ?? true) && !!kind.linkStateMetric;
+    const showContainers = (this._config.show_containers ?? false) && !!kind.containerRatioMetrics;
     const accentColor = resolveColor(this._config.color) ?? "var(--primary-color)";
 
     const updatesEntityId = resolved.summaryEntities.updates;
@@ -260,6 +323,23 @@ export class MosKindTitleCard extends LitElement {
         ? Math.min(100, (memoryBytes / totalBytes) * 100)
         : undefined;
 
+    const cpuPct = showCpu && hasGuests ? sumStates(hass, resolved.cpuEntities) : undefined;
+
+    let linkUrl: string | undefined;
+    if (showLink) {
+      for (const entityId of resolved.linkStateEntities) {
+        const url = hass.states[entityId]?.attributes.web_ui_url as string | undefined;
+        if (url) {
+          linkUrl = url;
+          break;
+        }
+      }
+    }
+
+    const containersRunning = showContainers ? sumStates(hass, resolved.containerRunningEntities) : undefined;
+    const containersTotal = showContainers ? sumStates(hass, resolved.containerTotalEntities) : undefined;
+    const hasContainerRow = containersRunning !== undefined || containersTotal !== undefined;
+
     const countsBlock = showCounts
       ? html`
           <div class="counts">
@@ -274,6 +354,26 @@ export class MosKindTitleCard extends LitElement {
                   <div class="stat">
                     <div class="stat-value">${updatesCount}</div>
                     <div class="stat-label">Updates</div>
+                  </div>
+                `
+              : nothing}
+            ${showCpu
+              ? html`
+                  <div class="stat">
+                    <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">${cpuPct !== undefined ? `${cpuPct.toFixed(0)}%` : "–"}</div>
+                    <div class="stat-label">CPU</div>
+                  </div>
+                `
+              : nothing}
+            ${showContainers
+              ? html`
+                  <div class="stat">
+                    <div class="stat-value ${!hasContainerRow ? "muted" : ""}">
+                      ${hasContainerRow
+                        ? html`${containersRunning ?? "–"}${containersTotal !== undefined ? html`/${containersTotal}` : nothing}`
+                        : "–"}
+                    </div>
+                    <div class="stat-label">Containers</div>
                   </div>
                 `
               : nothing}
@@ -307,6 +407,17 @@ export class MosKindTitleCard extends LitElement {
             </div>
             ${showBadges && hasProblem ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
             ${showBadges && hasUpdates ? html`<ha-icon class="corner-badge update" icon="mdi:update"></ha-icon>` : nothing}
+            ${linkUrl
+              ? html`
+                  <ha-icon
+                    class="corner-badge link"
+                    icon="mdi:open-in-new"
+                    @pointerdown=${(e: Event) => e.stopPropagation()}
+                    @pointerup=${(e: Event) => e.stopPropagation()}
+                    @click=${(e: Event) => this._openLink(e, linkUrl as string)}
+                  ></ha-icon>
+                `
+              : nothing}
           </div>
           <div class="title-col">
             <div class="title">${title}</div>
@@ -365,6 +476,11 @@ export class MosKindTitleCard extends LitElement {
       return;
     }
     handleAction(this, this.hass, this._config, action);
+  }
+
+  private _openLink(ev: Event, url: string): void {
+    ev.stopPropagation();
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   static styles = css`
@@ -429,6 +545,13 @@ export class MosKindTitleCard extends LitElement {
       right: -2px;
       background: var(--info-color, #039be5);
     }
+    .corner-badge.link {
+      bottom: -2px;
+      left: -2px;
+      background: var(--secondary-background-color, #444);
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
     .title-col {
       flex: 1 1 auto;
       min-width: 0;
@@ -453,10 +576,13 @@ export class MosKindTitleCard extends LitElement {
       visibility: hidden;
     }
     .counts {
-      flex: 0 0 auto;
+      flex: 0 1 auto;
       display: flex;
       flex-direction: row;
-      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 0;
     }
     .memory {
       flex: 0 0 auto;

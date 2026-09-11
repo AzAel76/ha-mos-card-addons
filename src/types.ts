@@ -19,6 +19,12 @@ export interface MosKindTitleCardConfig extends LovelaceCardConfig {
   show_badges?: boolean;
   show_counts?: boolean;
   show_gauge?: boolean;
+  /** An extra aggregate CPU-usage stat, summed the same way as memory. Default false. */
+  show_cpu?: boolean;
+  /** A tappable link badge when a guest exposes a web UI (docker/compose only). Default true. */
+  show_link?: boolean;
+  /** The containers-within-stacks ratio, distinct from stacks running/total (compose only). Default false. */
+  show_containers?: boolean;
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;
   double_tap_action?: ActionConfig;

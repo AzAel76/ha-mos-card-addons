@@ -35,6 +35,16 @@ export interface KindDef {
   readonly icon: string;
   /** The per-guest memory_usage entity, summed across every guest of this kind. */
   readonly memoryMetric: MetricDef;
+  /** The per-guest cpu_usage entity, summed across every guest of this kind. */
+  readonly cpuMetric: MetricDef;
+  /**
+   * The per-guest "state" entity — only docker/compose guests carry a
+   * `web_ui_url` attribute on theirs (confirmed against ha-mos-card's own
+   * source comments; LXC/VM guests have no web UI to link to).
+   */
+  readonly linkStateMetric?: MetricDef;
+  /** Per-stack container running/total (compose only — the containers *within* a stack, distinct from stacks running/total). */
+  readonly containerRatioMetrics?: { readonly running: MetricDef; readonly total: MetricDef };
   /**
    * PR-114 count sensors on the SERVER device (not per-guest). Rows are
    * rendered in this order; a sensor simply isn't listed here at all for a
@@ -48,6 +58,16 @@ export interface KindDef {
 const memoryMetric = (prefix: string): MetricDef => ({
   translationKey: `${prefix}_memory_usage`,
   keySuffix: "memory_usage",
+});
+
+const cpuMetric = (prefix: string): MetricDef => ({
+  translationKey: `${prefix}_cpu_usage`,
+  keySuffix: "cpu_usage",
+});
+
+const stateMetric = (prefix: string): MetricDef => ({
+  translationKey: `${prefix}_state`,
+  keySuffix: "state",
 });
 
 // PR-114 sensors have key === translation_key, so the unique_id fallback
@@ -66,6 +86,8 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     name: "Docker",
     icon: "mdi:docker",
     memoryMetric: memoryMetric("docker"),
+    cpuMetric: cpuMetric("docker"),
+    linkStateMetric: stateMetric("docker"),
     summarySensors: [
       summarySensor("running", "docker_containers_running", "Running"),
       summarySensor("total", "docker_containers_total", "Total"),
@@ -78,6 +100,12 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     name: "Compose Stacks",
     icon: "mdi:layers-triple",
     memoryMetric: memoryMetric("compose"),
+    cpuMetric: cpuMetric("compose"),
+    linkStateMetric: stateMetric("compose"),
+    containerRatioMetrics: {
+      running: { translationKey: "compose_running_containers", keySuffix: "running_containers" },
+      total: { translationKey: "compose_container_count", keySuffix: "container_count" },
+    },
     summarySensors: [
       summarySensor("running", "compose_stacks_running", "Running"),
       summarySensor("total", "compose_stacks_total", "Total"),
@@ -90,6 +118,7 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     name: "LXC",
     icon: "mdi:server",
     memoryMetric: memoryMetric("lxc"),
+    cpuMetric: cpuMetric("lxc"),
     summarySensors: [
       summarySensor("running", "lxc_containers_running", "Running"),
       summarySensor("total", "lxc_containers_total", "Total"),
@@ -101,6 +130,7 @@ export const KIND_DEFS: Readonly<Record<KindId, KindDef>> = {
     name: "Virtual Machines",
     icon: "mdi:monitor",
     memoryMetric: memoryMetric("vm"),
+    cpuMetric: cpuMetric("vm"),
     summarySensors: [
       summarySensor("running", "vm_machines_running", "Running"),
       summarySensor("total", "vm_machines_total", "Total"),
