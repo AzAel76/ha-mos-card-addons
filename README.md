@@ -20,6 +20,8 @@ Lovelace resource.
 
 ![mos-kind-title-card, standard layout](packages/mos-kind-title-card/docs/screenshots/Screenshot_standard_layout.png)
 
+![mos-server-summary-card](packages/mos-server-summary-card/docs/screenshots/Screenshot_server_summary.png)
+
 _See each package's own README for more screenshots (layout variants, GUI editor) of that card._
 
 ## Suggested deployment

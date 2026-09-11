@@ -21,11 +21,13 @@ Built with [Lit](https://lit.dev) + TypeScript, bundled with
 
 ## Screenshots
 
-<!--
-TODO: replace with real screenshots.
--->
+**The card:**
 
-_Screenshots coming soon._
+![MOS Server Summary Card](docs/screenshots/Screenshot_server_summary.png)
+
+**GUI editor:**
+
+![GUI editor](docs/screenshots/Screenshot_server_summary_editor.png)
 
 ## Suggested deployment
 
