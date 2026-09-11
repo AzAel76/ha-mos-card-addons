@@ -113,9 +113,15 @@ export class MosMemoryGauge extends LitElement {
       position: absolute;
       inset: 0;
       margin: auto;
-      width: 14px;
-      height: 14px;
-      --mdc-icon-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Set by the host page's .gauge rule so the icon scales with however
+         big the gauge is actually rendered (standard vs compact layout),
+         rather than a size fixed independent of the ring around it. */
+      width: var(--gauge-icon-size, 14px);
+      height: var(--gauge-icon-size, 14px);
+      --mdc-icon-size: var(--gauge-icon-size, 14px);
       color: var(--secondary-text-color);
     }
   `;

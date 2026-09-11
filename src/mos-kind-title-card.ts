@@ -18,9 +18,9 @@ import {
   subscribeEntityRegistry,
 } from "./devices";
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
-import { formatBytes, stateToBytes } from "./unit";
+import { formatBytes, formatSigFigs, stateToBytes } from "./unit";
 
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.6.0";
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
@@ -269,8 +269,11 @@ export class MosKindTitleCard extends LitElement {
     const showGauge = this._config.show_gauge ?? true;
     const showCpu = this._config.show_cpu ?? false;
     const showLink = this._config.show_link ?? true;
+    const linkStyle = this._config.link_style ?? "badge";
     const showContainers = (this._config.show_containers ?? false) && !!kind.containerRatioMetrics;
-    const accentColor = resolveColor(this._config.color) ?? "var(--primary-color)";
+    const iconStyle = this._config.icon_style ?? "filled";
+    const badgeColor = resolveColor(this._config.color) ?? "var(--primary-color)";
+    const iconColor = resolveColor(this._config.icon_color) ?? (iconStyle === "transparent" ? badgeColor : "#fff");
 
     const updatesEntityId = resolved.summaryEntities.updates;
     const updatesCount = updatesEntityId ? Number(hass.states[updatesEntityId]?.state) : undefined;
@@ -316,6 +319,7 @@ export class MosKindTitleCard extends LitElement {
       memoryBytes !== undefined && totalBytes !== undefined && totalBytes > 0
         ? Math.min(100, (memoryBytes / totalBytes) * 100)
         : undefined;
+    const memoryFormatted = hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : undefined;
 
     const cpuPct = showCpu && hasGuests ? sumStates(hass, resolved.cpuEntities) : undefined;
 
@@ -370,7 +374,9 @@ export class MosKindTitleCard extends LitElement {
                     <div class="gauge-item">
                       <div class="gauge"><mos-memory-gauge .value=${cpuPct} icon="mdi:chip"></mos-memory-gauge></div>
                       <div class="stat">
-                        <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">${cpuPct !== undefined ? `${cpuPct.toFixed(0)}%` : "–"}</div>
+                        <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">
+                          ${cpuPct !== undefined ? html`${formatSigFigs(cpuPct)}<span class="stat-unit">%</span>` : "–"}
+                        </div>
                         <div class="stat-label">CPU</div>
                       </div>
                     </div>
@@ -381,7 +387,11 @@ export class MosKindTitleCard extends LitElement {
                     <div class="gauge-item">
                       <div class="gauge"><mos-memory-gauge .value=${gaugePct}></mos-memory-gauge></div>
                       <div class="stat">
-                        <div class="stat-value">${hasGuests && memoryBytes !== undefined ? formatBytes(memoryBytes) : "–"}</div>
+                        <div class="stat-value ${!memoryFormatted ? "muted" : ""}">
+                          ${memoryFormatted
+                            ? html`${memoryFormatted.value}<span class="stat-unit">${memoryFormatted.unit}</span>`
+                            : "–"}
+                        </div>
                         <div class="stat-label">Memory</div>
                       </div>
                     </div>
@@ -400,12 +410,12 @@ export class MosKindTitleCard extends LitElement {
       >
         <div class="row">
           <div class="icon-wrap">
-            <div class="icon-badge" style="background:${accentColor}">
+            <div class="icon-badge" style="background:${iconStyle === "transparent" ? "transparent" : badgeColor}; color:${iconColor}">
               <ha-icon icon=${icon}></ha-icon>
             </div>
             ${showBadges && hasProblem ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
             ${showBadges && hasUpdates ? html`<ha-icon class="corner-badge update" icon="mdi:update"></ha-icon>` : nothing}
-            ${linkUrl
+            ${linkUrl && linkStyle === "badge"
               ? html`
                   <ha-icon
                     class="corner-badge link"
@@ -424,6 +434,19 @@ export class MosKindTitleCard extends LitElement {
           </div>
           ${layout === "gauge_first" ? gaugesBlock : countsBlock}
           ${layout === "gauge_first" ? countsBlock : gaugesBlock}
+          ${linkUrl && linkStyle === "button"
+            ? html`
+                <div
+                  class="link-button"
+                  title=${linkUrl}
+                  @pointerdown=${(e: Event) => e.stopPropagation()}
+                  @pointerup=${(e: Event) => e.stopPropagation()}
+                  @click=${(e: Event) => this._openLink(e, linkUrl as string)}
+                >
+                  <ha-icon icon="mdi:open-in-new"></ha-icon>
+                </div>
+              `
+            : nothing}
         </div>
       </ha-card>
     `;
@@ -516,7 +539,10 @@ export class MosKindTitleCard extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      /* background/color set inline per-instance — filled vs transparent, accent vs override */
+      transition:
+        background 0.15s ease,
+        color 0.15s ease;
     }
     .icon-badge ha-icon {
       --mdc-icon-size: 19px;
@@ -602,6 +628,10 @@ export class MosKindTitleCard extends LitElement {
       height: 34px;
       width: 34px;
       flex: 0 0 auto;
+      /* Consumed by the gauge's own shadow DOM via CSS custom property
+         inheritance, so its center icon scales with however big the ring
+         is actually rendered here, rather than a size fixed on its own. */
+      --gauge-icon-size: 14px;
     }
     .stat {
       display: flex;
@@ -619,6 +649,12 @@ export class MosKindTitleCard extends LitElement {
       opacity: 0.5;
       font-weight: 400;
     }
+    .stat-unit {
+      font-size: 0.7em;
+      font-weight: 400;
+      margin-left: 1px;
+      color: var(--secondary-text-color);
+    }
     .stat-label {
       font-size: 8.5px;
       font-weight: 500;
@@ -627,6 +663,19 @@ export class MosKindTitleCard extends LitElement {
       line-height: 1.2;
       color: var(--secondary-text-color);
       white-space: nowrap;
+    }
+    .link-button {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+      color: var(--primary-text-color);
+      cursor: pointer;
+      --mdc-icon-size: 16px;
     }
 
     /* Compact layout: a deliberately shorter, denser variant for tighter dashboards. */
@@ -664,6 +713,15 @@ export class MosKindTitleCard extends LitElement {
     .layout-compact .gauge {
       height: 26px;
       width: 26px;
+      --gauge-icon-size: 10px;
+    }
+    .layout-compact .stat-unit {
+      font-size: 0.65em;
+    }
+    .layout-compact .link-button {
+      width: 20px;
+      height: 20px;
+      --mdc-icon-size: 12px;
     }
     .layout-compact .counts,
     .layout-compact .gauges {

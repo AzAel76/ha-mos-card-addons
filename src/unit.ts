@@ -64,12 +64,26 @@ export function stateToBytes(stateObj: HassEntity | undefined): number | undefin
 
 const DISPLAY_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"] as const;
 
-/** Raw bytes formatted as a friendly binary unit, e.g. `4.04 GiB`. */
-export function formatBytes(bytes: number, decimals = 2): string {
+export interface FormattedNumber {
+  /** 3 significant figures — "100", "99.9", "9.99" — never wider than the small gauge label has room for. */
+  value: string;
+  unit: string;
+}
+
+/** A number to 3 significant figures, the shared rule for every gauge-adjacent value. */
+export function formatSigFigs(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "–";
+  }
+  return value.toPrecision(3);
+}
+
+/** Raw bytes as a friendly binary unit, value and unit kept separate so the unit can be styled smaller. */
+export function formatBytes(bytes: number): FormattedNumber {
   if (bytes <= 0) {
-    return "0 B";
+    return { value: "0", unit: "B" };
   }
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), DISPLAY_UNITS.length - 1);
   const value = bytes / 1024 ** exponent;
-  return `${value.toFixed(exponent === 0 ? 0 : decimals)} ${DISPLAY_UNITS[exponent]}`;
+  return { value: formatSigFigs(value), unit: DISPLAY_UNITS[exponent] };
 }

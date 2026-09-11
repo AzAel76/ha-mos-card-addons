@@ -28,7 +28,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   kind: "Kind",
   title: "Title",
   icon: "Icon",
-  color: "Accent color",
+  icon_style: "Icon style",
+  color: "Icon background color",
+  icon_color: "Icon color",
   layout: "Layout",
   show_badges: "Show badges",
   show_counts: "Show counts",
@@ -36,6 +38,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   show_cpu: "Show CPU usage",
   show_link: "Show MOS UI link",
   link_path: "Link path override",
+  link_style: "Link style",
   show_containers: "Show container count",
 };
 
@@ -43,6 +46,16 @@ const LAYOUT_OPTIONS: SelectOption[] = [
   { value: "standard", label: "Standard" },
   { value: "compact", label: "Compact" },
   { value: "gauge_first", label: "Gauge first" },
+];
+
+const ICON_STYLE_OPTIONS: SelectOption[] = [
+  { value: "filled", label: "Filled" },
+  { value: "transparent", label: "Transparent" },
+];
+
+const LINK_STYLE_OPTIONS: SelectOption[] = [
+  { value: "badge", label: "Corner badge on icon" },
+  { value: "button", label: "Standalone button" },
 ];
 
 @customElement("mos-kind-title-card-editor")
@@ -119,13 +132,16 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
       },
       { name: "title", selector: { text: {} } },
       { name: "icon", selector: { icon: {} } },
+      { name: "icon_style", selector: { select: { mode: "dropdown", options: ICON_STYLE_OPTIONS } } },
       { name: "color", selector: { ui_color: {} } },
+      { name: "icon_color", selector: { ui_color: {} } },
       { name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } },
       { name: "show_badges", selector: { boolean: {} } },
       { name: "show_counts", selector: { boolean: {} } },
       { name: "show_gauge", selector: { boolean: {} } },
       { name: "show_cpu", selector: { boolean: {} } },
       { name: "show_link", selector: { boolean: {} } },
+      { name: "link_style", selector: { select: { mode: "dropdown", options: LINK_STYLE_OPTIONS } } },
       { name: "link_path", selector: { text: {} } },
       // Only compose has a containers-within-stacks ratio distinct from
       // stacks running/total — omitted for kinds that couldn't use it.
@@ -161,11 +177,13 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
   private _data(config: MosKindTitleCardConfig): MosKindTitleCardConfig {
     return {
       layout: "standard",
+      icon_style: "filled",
       show_badges: true,
       show_counts: true,
       show_gauge: true,
       show_cpu: false,
       show_link: true,
+      link_style: "badge",
       show_containers: false,
       ...config,
     };
