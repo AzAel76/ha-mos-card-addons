@@ -15,6 +15,23 @@ Each package is built and distributed independently (its own `dist/`
 bundle, HACS metadata, and README) so it can be installed as a standalone
 Lovelace resource.
 
+## Screenshots
+
+<!--
+TODO: replace with real screenshots, e.g.:
+![mos-kind-title-card stacked above ha-mos-card](docs/screenshots/mos-kind-title-card.png)
+-->
+
+_See each package's own README for screenshots of that card._
+
+## Suggested deployment
+
+- **Most users:** install a package via [HACS](https://hacs.xyz) as a
+  custom repository rather than building from source — see that
+  package's README for its HACS setup and install steps.
+- **Developers:** clone this repo and use the npm workspace commands
+  below to build/deploy a package from source.
+
 ## Requirements
 
 - Node.js 18+

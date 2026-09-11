@@ -12,6 +12,27 @@ count, update/problem badges, and a memory gauge, left to right.
 Built with [Lit](https://lit.dev) + TypeScript, bundled with
 [Vite](https://vitejs.dev).
 
+## Screenshots
+
+<!--
+TODO: replace with real screenshots, e.g.:
+![Standard layout](docs/screenshots/standard.png)
+![Compact layout, gauge_first](docs/screenshots/compact-gauge-first.png)
+![GUI editor](docs/screenshots/editor.png)
+-->
+
+_Screenshots coming soon — the standard layout stacked above `ha-mos-card`,
+the `compact`/`gauge_first` layout variants, and the GUI editor._
+
+## Suggested deployment
+
+- **Most users:** install via [HACS](#publishing--hacs) as a custom
+  repository, then add the Lovelace resource it registers — see
+  [Installing the resource in Home Assistant](#installing-the-resource-in-home-assistant).
+- **Developers / building from source:** clone this repo and use the
+  [Development](#development) workflow below (`npm run dev` /
+  `npm run deploy`) instead of HACS.
+
 ## Requirements
 
 - Node.js 18+
