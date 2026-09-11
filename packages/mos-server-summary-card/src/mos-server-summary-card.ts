@@ -49,7 +49,7 @@ import { formatBytes, formatSigFigs, stateToBytes } from "./unit";
 import { fillPlaceholders, GestureTracker, moreInfoEntity } from "./gesture";
 import type { GestureAction } from "./gesture";
 
-const CARD_VERSION = "0.1.0"; // x-release-please-version
+const CARD_VERSION = "0.1.1"; // x-release-please-version
 
 console.info(
   `%c MOS-SERVER-SUMMARY-CARD %c v${CARD_VERSION} `,
