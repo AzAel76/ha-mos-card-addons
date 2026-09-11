@@ -4,10 +4,12 @@ A compact (~50px by default — grows a little taller only if you enable
 enough optional stats to need it) Lovelace title-bar card for Home
 Assistant, one per virtualization "kind" exposed by the
 [ha-mos](https://github.com/anym001/ha-mos) NAS integration: Docker, Compose
-Stacks, LXC, or Virtual Machines. Meant to sit in a `vertical-stack` directly
-above [ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row
+Stacks, LXC, or Virtual Machines. Envisioned to act as a title card for 
+[expander-card](https://github.com/MelleD/lovelace-expander-card) it can also be placed in 
+ a `vertical-stack` directly above 
+ [ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row
 list for that kind, as a glanceable, semi-interactive header — icon, running
-count, update/problem badges, and a memory gauge, left to right.
+count, update/problem badges, cpu and memory gauges, left to right.
 
 Built with [Lit](https://lit.dev) + TypeScript, bundled with
 [Vite](https://vitejs.dev).
@@ -226,8 +228,8 @@ double_tap_action:
   use a fixed traffic-light scale regardless of icon color — green 0–25%,
   yellow 26–50%, orange 51–75%, red 76–100% — since they're a health
   indicator, not a branding surface. Every gauge-adjacent number (memory,
-  CPU%) is rounded to 3 significant figures — "100", "99.9", "9.99" — never
-  wider than the small label has comfortable room for.
+  CPU%) is formatted to at most 4 characters — "100", "99.9", "9.99",
+  "0.27" — never wider than the small label has comfortable room for.
 
 Values are normalized to bytes before summing/dividing regardless of what
 display unit (MiB, GiB, or a user-overridden decimal MB/GB) each sensor

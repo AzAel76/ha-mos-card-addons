@@ -509,6 +509,7 @@ export class MosKindTitleCard extends LitElement {
   static styles = css`
     ha-card {
       min-height: 50px;
+      overflow: hidden;
       box-sizing: border-box;
       display: flex;
       align-items: center;
@@ -606,19 +607,19 @@ export class MosKindTitleCard extends LitElement {
       visibility: hidden;
     }
     .counts {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: row;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       justify-content: flex-end;
       gap: 10px;
       min-width: 0;
     }
     .gauges {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       justify-content: flex-end;
       gap: 12px;
     }

@@ -65,17 +65,35 @@ export function stateToBytes(stateObj: HassEntity | undefined): number | undefin
 const DISPLAY_UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"] as const;
 
 export interface FormattedNumber {
-  /** 3 significant figures — "100", "99.9", "9.99" — never wider than the small gauge label has room for. */
+  /** At most 4 characters — "100", "99.9", "9.99", "0.27" — never wider than the small gauge label has room for. */
   value: string;
   unit: string;
 }
 
-/** A number to 3 significant figures, the shared rule for every gauge-adjacent value. */
+/**
+ * A number formatted to at most 4 characters regardless of magnitude — the
+ * shared rule for every gauge-adjacent value: 0 decimals at 100+, 1 decimal
+ * at 10+, 2 decimals below that (which also covers values under 1, e.g.
+ * "0.27", without the extra "0." digit blowing the width budget).
+ *
+ * Thresholds are shaded down by half a step (99.95/9.995 instead of 100/10)
+ * so a value that `toFixed` would round up across a tier boundary — e.g.
+ * 9.996 — is bucketed by where it rounds *to*, not where it started;
+ * otherwise 9.996 would pick the 2-decimal tier and round to "10.00" (5
+ * characters).
+ */
 export function formatSigFigs(value: number): string {
   if (!Number.isFinite(value)) {
     return "–";
   }
-  return value.toPrecision(3);
+  const abs = Math.abs(value);
+  if (abs >= 99.95) {
+    return value.toFixed(0);
+  }
+  if (abs >= 9.995) {
+    return value.toFixed(1);
+  }
+  return value.toFixed(2);
 }
 
 /** Raw bytes as a friendly binary unit, value and unit kept separate so the unit can be styled smaller. */
