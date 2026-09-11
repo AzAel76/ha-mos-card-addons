@@ -1,6 +1,7 @@
 import type { ActionConfig, HomeAssistant, LovelaceCardConfig, LovelaceCardEditor } from "custom-card-helpers";
 
 export type UptimeStyle = "relative" | "uptime_compact" | "uptime_verbose";
+export type InfoLayout = "grid" | "chips" | "list" | "line";
 export type GuestStatusStyle = "badges" | "text" | "ticker";
 export type ServicesStyle = "compact" | "labeled" | "detailed";
 export type SectionId = "info" | "metrics" | "pools_temp" | "guest_status" | "services";
@@ -27,8 +28,10 @@ export interface MosServerSummaryCardConfig extends LovelaceCardConfig {
   show_uptime?: boolean;
   /** "relative" ("2 days ago"), or a duration since boot ("uptime_compact": "2d 4h 13m", "uptime_verbose": "2 days, 4 hours, 13 minutes"). Default "relative". */
   uptime_style?: UptimeStyle;
-  /** The compact MOS version/CPU/kernel/architecture/base OS/memory-installed grid. Default true. */
+  /** The MOS version/CPU/kernel/architecture/base OS/memory-installed section. Default true. */
   show_info?: boolean;
+  /** "grid" (default, icon grid), "chips" (wrapping icon+value pills), "list" (dense label:value table), or "line" (one wrapping text line). */
+  info_layout?: InfoLayout;
   /** The CPU load gauge + history sparkline. Default true. */
   show_cpu_metric?: boolean;
   /** The memory usage gauge + history sparkline. Default true. */
@@ -43,13 +46,13 @@ export interface MosServerSummaryCardConfig extends LovelaceCardConfig {
   show_pools?: boolean;
   /** Per-pool label overrides, keyed by the pool's auto-detected name (e.g. "Data") — the value fully replaces the pill's label. */
   pool_labels?: Record<string, string>;
-  /** Shared tap/hold/double-tap actions applied to every pool pill. Support {{pool_name}}/{{pool_usage_entity}}/{{pool_problem_entity}} tokens, substituted per pool at fire time. */
+  /** Shared tap/hold/double-tap actions applied to every pool pill. Support [[pool_name]]/[[pool_usage_entity]]/[[pool_problem_entity]] tokens, substituted per pool at fire time. */
   pool_tap_action?: ActionConfig;
   pool_hold_action?: ActionConfig;
   pool_double_tap_action?: ActionConfig;
   /** The CPU temperature stat. Default true. */
   show_cpu_temp?: boolean;
-  /** Tap/hold/double-tap actions for the CPU temperature pill. Support {{server_name}}/{{cpu_temp_entity}} tokens. */
+  /** Tap/hold/double-tap actions for the CPU temperature pill. Support [[server_name]]/[[cpu_temp_entity]] tokens. */
   cpu_temp_tap_action?: ActionConfig;
   cpu_temp_hold_action?: ActionConfig;
   cpu_temp_double_tap_action?: ActionConfig;
@@ -65,7 +68,7 @@ export interface MosServerSummaryCardConfig extends LovelaceCardConfig {
   show_guest_status?: boolean;
   /** "badges" (small icon pills), "text" (a static line), or "ticker" (auto-scrolling). Default "badges". */
   guest_status_style?: GuestStatusStyle;
-  /** Display order of the below-header sections. The header itself is always first and not included here. Defaults to the order above. */
+  /** Display order of the below-header sections. The header itself is always first and not included here. Defaults to the order above. YAML/code-editor only — deliberately not exposed as a GUI field, see CLAUDE.md. */
   section_order?: SectionId[];
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;

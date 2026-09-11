@@ -27,9 +27,35 @@ Versions correspond to `mos-server-summary-card-v*` tags/releases in this repo
   descriptive layouts — labeled chips and detailed rows — alongside the
   original compact icons (`services_style`).
 - Independently configurable tap/hold/double-tap actions for storage pool
-  pills and the CPU temperature stat, supporting `{{token}}` placeholder
-  substitution (e.g. `{{pool_name}}`) so one shared action can still
+  pills and the CPU temperature stat, supporting `[[token]]` placeholder
+  substitution (e.g. `[[pool_name]]`) so one shared action can still
   reference the specific element it was fired from.
-- Reorderable section display order (`section_order`).
+- Reorderable section display order (`section_order`, YAML-only — see
+  Changed below).
+- Three more basic-info layouts alongside the original icon grid: a chip
+  row, a dense label:value list, and a single wrapping line
+  (`info_layout`).
 - The GUI editor is now grouped into expandable, conditionally-populated
   sections to stay usable as the option count grew.
+
+### Fixed
+
+- Sparkline value/time scale labels rendered visibly distorted (squashed
+  glyphs) — the SVG's `preserveAspectRatio="none"` non-uniformly scales
+  everything inside it, text included; labels now render as plain HTML
+  overlays outside the SVG instead. The value scale now sits on the right
+  edge.
+- "Memory Installed" showed e.g. "16.0B" instead of "16.0 GiB" — the raw
+  display-unit state number was being treated as bytes instead of being
+  normalized via `stateToBytes`.
+- Storage pool / CPU temperature tap actions did nothing: the placeholder
+  syntax is now `[[key]]` (matching the sibling `ha-mos-card` project's own
+  convention, and deliberately not `{{ }}`, which reads as Jinja), and a
+  `more-info` action's `entity` is now correctly lifted to the top-level
+  config `handleAction` actually reads it from.
+
+### Changed
+
+- `section_order` is no longer a GUI editor field (the reorderable
+  multi-select was unintuitive) — it's fully supported YAML/code-editor
+  only.

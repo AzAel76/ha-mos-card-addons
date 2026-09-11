@@ -4,7 +4,6 @@ import { fireEvent } from "custom-card-helpers";
 import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 import type { UnsubscribeFunc } from "home-assistant-js-websocket";
 import type { MosServerSummaryCardConfig } from "./types";
-import { DEFAULT_SECTION_ORDER } from "./types";
 import { findServerDevices, subscribeDeviceRegistry } from "./devices";
 import type { DeviceRegistryEntry } from "./devices";
 
@@ -31,6 +30,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   show_uptime: "Show boot time / uptime",
   uptime_style: "Boot time display",
   show_info: "Show basic info",
+  info_layout: "Basic info layout",
   show_cpu_metric: "Show CPU load",
   show_memory_metric: "Show memory usage",
   history_hours: "History window",
@@ -51,7 +51,6 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   show_disk_health: "Show disk health",
   show_guest_status: "Show guest updates/problems",
   guest_status_style: "Guest status layout",
-  section_order: "Section order",
 };
 
 const HISTORY_HOURS_OPTIONS: SelectOption[] = [
@@ -68,6 +67,13 @@ const UPTIME_STYLE_OPTIONS: SelectOption[] = [
   { value: "uptime_verbose", label: "Uptime, verbose (“2 days, 4 hours, 13 minutes”)" },
 ];
 
+const INFO_LAYOUT_OPTIONS: SelectOption[] = [
+  { value: "grid", label: "Icon grid" },
+  { value: "chips", label: "Chip row" },
+  { value: "list", label: "Label:value list" },
+  { value: "line", label: "Single line" },
+];
+
 const GUEST_STATUS_STYLE_OPTIONS: SelectOption[] = [
   { value: "badges", label: "Icon badges" },
   { value: "text", label: "Static text" },
@@ -78,14 +84,6 @@ const SERVICES_STYLE_OPTIONS: SelectOption[] = [
   { value: "compact", label: "Compact (icon only)" },
   { value: "labeled", label: "Labeled chips" },
   { value: "detailed", label: "Detailed rows" },
-];
-
-const SECTION_OPTIONS: SelectOption[] = [
-  { value: "info", label: "Basic Info" },
-  { value: "metrics", label: "System Metrics" },
-  { value: "pools_temp", label: "Storage Pools + CPU Temperature" },
-  { value: "guest_status", label: "Guest Status" },
-  { value: "services", label: "Network & Services" },
 ];
 
 @customElement("mos-server-summary-card-editor")
@@ -150,6 +148,7 @@ export class MosServerSummaryCardEditor extends LitElement implements LovelaceCa
    */
   private _schema(): Schema[] {
     const showUptime = this._config?.show_uptime ?? true;
+    const showInfo = this._config?.show_info ?? true;
     const showPools = this._config?.show_pools ?? true;
     const showCpuTemp = this._config?.show_cpu_temp ?? true;
     const showGuestStatus = this._config?.show_guest_status ?? true;
@@ -184,7 +183,12 @@ export class MosServerSummaryCardEditor extends LitElement implements LovelaceCa
         name: "info_group",
         title: "Basic Info",
         flatten: true,
-        schema: [{ name: "show_info", selector: { boolean: {} } }],
+        schema: [
+          { name: "show_info", selector: { boolean: {} } },
+          ...(showInfo
+            ? [{ name: "info_layout", selector: { select: { mode: "dropdown", options: INFO_LAYOUT_OPTIONS } } }]
+            : []),
+        ],
       },
       {
         type: "expandable",
@@ -265,15 +269,6 @@ export class MosServerSummaryCardEditor extends LitElement implements LovelaceCa
       },
       {
         type: "expandable",
-        name: "order_group",
-        title: "Section Order",
-        flatten: true,
-        schema: [
-          { name: "section_order", selector: { select: { multiple: true, reorder: true, options: SECTION_OPTIONS } } },
-        ],
-      },
-      {
-        type: "expandable",
         name: "interactions_group",
         title: "Interactions",
         flatten: true,
@@ -314,6 +309,7 @@ export class MosServerSummaryCardEditor extends LitElement implements LovelaceCa
       show_uptime: true,
       uptime_style: "relative",
       show_info: true,
+      info_layout: "grid",
       show_cpu_metric: true,
       show_memory_metric: true,
       // ha-form's select selector compares by string, but the stored config
@@ -331,7 +327,6 @@ export class MosServerSummaryCardEditor extends LitElement implements LovelaceCa
       show_disk_health: true,
       show_guest_status: true,
       guest_status_style: "badges",
-      section_order: [...DEFAULT_SECTION_ORDER],
       ...config,
     };
   }

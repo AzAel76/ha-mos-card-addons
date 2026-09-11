@@ -104,8 +104,8 @@ action picker, a style select — appear once that toggle is switched on):
   name override.
 - **Header** — header image URL, its size (a 24–96px slider), whether to
   show the boot-time/uptime line, and (once that's on) its display style.
-- **Basic Info** — the MOS version/CPU/kernel/architecture/base OS/memory
-  grid, on/off.
+- **Basic Info** — on/off, and once on: its layout (icon grid, chip row,
+  label:value list, or a single line).
 - **System Metrics** — CPU load / memory usage gauges, on/off each, the
   sparkline history window (1/3/6/12/24h), and the sparkline's optional
   value scale (faint 0/50/100% reference) and time scale (tick labels for
@@ -117,12 +117,16 @@ action picker, a style select — appear once that toggle is switched on):
 - **Guest Status** — on/off, and once on: its display style.
 - **Network & Services** — network/service/disk-health toggles, and once
   services are on: the status section's display style.
-- **Section Order** — a reorderable multi-select of the five sections above
-  (the header is always first and isn't part of this list).
 - **Interactions** — the whole-card tap/hold/double-tap actions.
 
 No entity pickers beyond the server itself: every other entity the card
 needs is discovered automatically from the device and entity registries.
+
+`section_order` (see YAML below) is deliberately **not** a GUI field — a
+reorderable list of five items added little value over just editing the
+array directly, so it's set via the card's YAML/code editor (Add Card → ⋮ →
+"Edit in YAML", or the "Show code editor" link at the bottom of the visual
+editor) instead of a dedicated control.
 
 ## Interactivity
 
@@ -135,26 +139,39 @@ configured, does _not_ also fire the whole-card action.
 Since there's one shared action per element _type_ rather than a distinct
 action per pool (the pool list is dynamic — discovered per server, not
 knowable ahead of time in a static editor schema), these actions support
-`{{token}}` placeholders, resolved to that specific element's own values
-right before the action fires:
+`[[token]]` placeholders (double square brackets — deliberately not
+`{{ }}`, which in Home Assistant means Jinja; nothing here evaluates
+anything, this is plain text substitution), resolved to that specific
+element's own values right before the action fires:
 
 | Element         | Tokens                                                              |
 | --------------- | ------------------------------------------------------------------- |
-| Pool pills      | `{{pool_name}}`, `{{pool_usage_entity}}`, `{{pool_problem_entity}}` |
-| CPU temperature | `{{server_name}}`, `{{cpu_temp_entity}}`                            |
+| Pool pills      | `[[pool_name]]`, `[[pool_usage_entity]]`, `[[pool_problem_entity]]` |
+| CPU temperature | `[[server_name]]`, `[[cpu_temp_entity]]`                            |
 
 For example, a `more-info` action naming a specific entity per pool:
 
 ```yaml
 pool_tap_action:
   action: more-info
-  entity: "{{pool_usage_entity}}"
+  entity: "[[pool_usage_entity]]"
 ```
 
-Or a `fire-dom-event` action (e.g. to open a
+**A `more-info` action's `entity` is a special case**, not just another
+placeholder-filled field: Home Assistant's `handleAction` reads which
+entity to show from the _card-level_ config it's handed, never from the
+action config itself, so an `entity` written inside `pool_tap_action`
+would otherwise be silently ignored — substituted placeholder or not. The
+card lifts it out for you (the same fix `ha-mos-card` uses for its own row
+actions), so the example above works as expected; omit `entity` entirely
+and a plain `more-info` falls back to that pool's own usage sensor (or the
+CPU temperature entity, for `cpu_temp_tap_action`).
+
+A `fire-dom-event` action (e.g. to open a
 [popup-card](https://github.com/olivierplante/popup-card) with per-pool
-context) carrying a templated payload in `event_data` — any string value
-anywhere in the action config gets the same token substitution.
+context) carrying a templated payload in `event_data` works the same way —
+any string value anywhere in the action config gets `[[token]]`
+substitution.
 
 ## YAML
 
@@ -167,6 +184,7 @@ image_size: 40 # px, 24-96
 show_uptime: true
 uptime_style: relative # relative | uptime_compact | uptime_verbose
 show_info: true
+info_layout: grid # grid | chips | list | line
 show_cpu_metric: true
 show_memory_metric: true
 history_hours: 3 # 1 | 3 | 6 | 12 | 24
@@ -209,40 +227,43 @@ double_tap_action:
   action: none
 ```
 
-| Option                                                                        | Purpose                                                                                                                                     |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server`                                                                      | device_id of the MOS server device (required)                                                                                               |
-| `title`                                                                       | Overrides the server device's own name                                                                                                      |
-| `image`                                                                       | Custom header image URL; falls back to a generic server icon                                                                                |
-| `image_size`                                                                  | Header image/fallback-icon size in px, default `40`                                                                                         |
-| `show_uptime`                                                                 | Boot time / uptime line, default `true`                                                                                                     |
-| `uptime_style`                                                                | `relative` (default, "2 days ago"), `uptime_compact` ("2d 4h 13m"), or `uptime_verbose` ("2 days, 4 hours, 13 minutes")                     |
-| `show_info`                                                                   | MOS version/CPU/kernel/architecture/base OS/memory grid, default `true`                                                                     |
-| `show_cpu_metric` / `show_memory_metric`                                      | Each metric's gauge + sparkline, default `true`                                                                                             |
-| `history_hours`                                                               | Sparkline lookback window in hours, default `3`                                                                                             |
-| `sparkline_show_value_scale`                                                  | Faint 0/50/100% reference on the sparklines, default `false`                                                                                |
-| `sparkline_show_time_scale`                                                   | Time-axis tick labels on the sparklines, default `false`                                                                                    |
-| `show_pools`                                                                  | Storage pool usage pills, default `true`                                                                                                    |
-| `pool_labels`                                                                 | Per-pool label overrides, keyed by the pool's auto-detected name (e.g. `Data`) — the value fully replaces the pill's label                  |
-| `pool_tap_action` / `pool_hold_action` / `pool_double_tap_action`             | Shared actions for every pool pill; support `{{pool_name}}`/`{{pool_usage_entity}}`/`{{pool_problem_entity}}` tokens                        |
-| `show_cpu_temp`                                                               | CPU temperature stat, default `true`                                                                                                        |
-| `cpu_temp_tap_action` / `cpu_temp_hold_action` / `cpu_temp_double_tap_action` | Actions for the CPU temperature stat; support `{{server_name}}`/`{{cpu_temp_entity}}` tokens                                                |
-| `show_network`                                                                | Tailscale/Netbird connectivity badges, default `true`                                                                                       |
-| `show_services`                                                               | SSH/Samba/NFS status badges, default `true`                                                                                                 |
-| `services_style`                                                              | `compact` (default, icon only), `labeled` (icon + short text), or `detailed` (one full row each)                                            |
-| `show_disk_health`                                                            | Disk SMART-warning badge, default `true`                                                                                                    |
-| `show_guest_status`                                                           | Guest updates/problems section, default `true`                                                                                              |
-| `guest_status_style`                                                          | `badges` (default), `text` (static line), or `ticker` (auto-scrolling)                                                                      |
-| `section_order`                                                               | Display order of the below-header sections (`info`, `metrics`, `pools_temp`, `guest_status`, `services`); the header itself is always first |
-| `tap_action` / `hold_action` / `double_tap_action`                            | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) for the whole card                               |
+| Option                                                                        | Purpose                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server`                                                                      | device_id of the MOS server device (required)                                                                                                                                                   |
+| `title`                                                                       | Overrides the server device's own name                                                                                                                                                          |
+| `image`                                                                       | Custom header image URL; falls back to a generic server icon                                                                                                                                    |
+| `image_size`                                                                  | Header image/fallback-icon size in px, default `40`                                                                                                                                             |
+| `show_uptime`                                                                 | Boot time / uptime line, default `true`                                                                                                                                                         |
+| `uptime_style`                                                                | `relative` (default, "2 days ago"), `uptime_compact` ("2d 4h 13m"), or `uptime_verbose` ("2 days, 4 hours, 13 minutes")                                                                         |
+| `show_info`                                                                   | MOS version/CPU/kernel/architecture/base OS/memory section, default `true`                                                                                                                      |
+| `info_layout`                                                                 | `grid` (default, icon grid), `chips` (wrapping icon+value pills), `list` (dense label:value table), or `line` (one wrapping text line)                                                          |
+| `show_cpu_metric` / `show_memory_metric`                                      | Each metric's gauge + sparkline, default `true`                                                                                                                                                 |
+| `history_hours`                                                               | Sparkline lookback window in hours, default `3`                                                                                                                                                 |
+| `sparkline_show_value_scale`                                                  | Faint 0/50/100% reference on the sparklines, default `false`                                                                                                                                    |
+| `sparkline_show_time_scale`                                                   | Time-axis tick labels on the sparklines, default `false`                                                                                                                                        |
+| `show_pools`                                                                  | Storage pool usage pills, default `true`                                                                                                                                                        |
+| `pool_labels`                                                                 | Per-pool label overrides, keyed by the pool's auto-detected name (e.g. `Data`) — the value fully replaces the pill's label                                                                      |
+| `pool_tap_action` / `pool_hold_action` / `pool_double_tap_action`             | Shared actions for every pool pill; support `[[pool_name]]`/`[[pool_usage_entity]]`/`[[pool_problem_entity]]` tokens (see Interactivity)                                                        |
+| `show_cpu_temp`                                                               | CPU temperature stat, default `true`                                                                                                                                                            |
+| `cpu_temp_tap_action` / `cpu_temp_hold_action` / `cpu_temp_double_tap_action` | Actions for the CPU temperature stat; support `[[server_name]]`/`[[cpu_temp_entity]]` tokens                                                                                                    |
+| `show_network`                                                                | Tailscale/Netbird connectivity badges, default `true`                                                                                                                                           |
+| `show_services`                                                               | SSH/Samba/NFS status badges, default `true`                                                                                                                                                     |
+| `services_style`                                                              | `compact` (default, icon only), `labeled` (icon + short text), or `detailed` (one full row each)                                                                                                |
+| `show_disk_health`                                                            | Disk SMART-warning badge, default `true`                                                                                                                                                        |
+| `show_guest_status`                                                           | Guest updates/problems section, default `true`                                                                                                                                                  |
+| `guest_status_style`                                                          | `badges` (default), `text` (static line), or `ticker` (auto-scrolling)                                                                                                                          |
+| `section_order`                                                               | Display order of the below-header sections (`info`, `metrics`, `pools_temp`, `guest_status`, `services`); the header itself is always first. **YAML-only** — no GUI field, see GUI editor above |
+| `tap_action` / `hold_action` / `double_tap_action`                            | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) for the whole card                                                                                   |
 
 ## What it shows
 
 - **Header** — your custom, resizable image (or a generic server icon)
   with the hostname and a boot-time or uptime line.
-- **Basic info grid** — MOS version (with a small update dot when a newer
-  kernel is recommended than the one running), CPU model, running kernel,
-  architecture, base OS, and installed memory.
+- **Basic info** — MOS version (with a small update dot when a newer kernel
+  is recommended than the one running), CPU model, running kernel,
+  architecture, base OS, and installed memory, in your choice of an icon
+  grid, a chip row, a dense label:value list, or a single wrapping line
+  (`info_layout`).
 - **System metrics** — CPU load and memory usage, each as a color-coded
   radial gauge (the same fixed traffic-light scale as mos-kind-title-card's
   gauges — a health indicator, not a branding surface) plus a history
@@ -265,4 +286,4 @@ double_tap_action:
   disk-health warning (shown only when a disk reports one).
 
 Every section above (except the header) can be reordered via
-`section_order`.
+`section_order` (YAML/code-editor only, see GUI editor above).

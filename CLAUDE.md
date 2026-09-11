@@ -142,8 +142,8 @@ schema or visual behavior, since the two must stay in sync.
 
 A per-server Lovelace summary card — one instance per MOS server device.
 Deliberately shows no per-guest Docker/Compose/LXC/VM detail (that's
-mos-kind-title-card's job) beyond a single aggregate corner badge for
-updates/problems across all of them. Built with Lit + TypeScript, bundled
+mos-kind-title-card's job) beyond a single aggregate guest-status section
+for updates/problems across all of them. Built with Lit + TypeScript, bundled
 with Vite, same overall shape as mos-kind-title-card but for a different
 device scope (one server device's own entities, plus its dynamic pool/disk
 child devices, rather than one kind's sibling guest devices).
@@ -178,22 +178,47 @@ Source layout (`packages/mos-server-summary-card/src/`):
   connect, then a `HistoryBuffer` extends the window locally from each live
   `hass.states` tick rather than re-polling on a timer.
 - `sparkline.ts` — a hand-built inline SVG trend line (`<mos-sparkline>`),
-  same "no charting library" philosophy as `gauge.ts`.
+  same "no charting library" philosophy as `gauge.ts`. The optional
+  value/time reference labels are rendered as plain HTML overlays, not SVG
+  `<text>` — the SVG uses `preserveAspectRatio="none"` so the polyline
+  fills its box, but that non-uniformly stretches _everything_ inside it
+  including glyph shapes, which is what a first attempt at in-SVG text
+  looked visibly distorted.
 - `gauge.ts` — the same radial gauge as mos-kind-title-card's, but the
   custom element is named `mos-server-gauge`, not `mos-memory-gauge` — see
   the cross-package custom-element-name note above.
+- `gesture.ts` — `GestureTracker` (per-element tap/hold/double-tap timer
+  state, one instance per pool + one for CPU temp + one for the whole
+  card, so a sub-element's gesture doesn't reset mid-flight on an
+  unrelated re-render) and two helpers ported from the sibling
+  `ha-mos-card` project's own action-handling code (`rows.ts`/`mos-card.ts`),
+  since this card's shared-per-element-type action fields
+  (`pool_tap_action` etc.) need the same placeholder mechanism:
+  `fillPlaceholders` substitutes `[[key]]` tokens (deliberately not
+  `{{ }}`, which reads as Jinja) recursively through an action config, and
+  `moreInfoEntity` lifts a `more-info` action's `entity` out to the
+  top-level config object `handleAction` actually reads it from — a
+  `more-info` action's own `entity` field is otherwise silently ignored
+  regardless of whether its placeholder was substituted correctly, which
+  is exactly what broke this the first time it was implemented.
 - `mos-server-summary-card.ts` — the card element: resolves the server
   device's own entities plus its pool/disk child devices and cross-kind
   guest problem/update state into a `Resolved` struct, renders the
-  header/info-grid/metrics/pools/status-strip sections (each independently
-  toggleable), and owns the two `HistoryBuffer` instances. Does **not**
-  implement a fixed `getLayoutOptions()` grid size — this card's real
-  height varies with which sections are enabled and how many pools are
-  discovered, and asserting a static size that's usually-but-not-always
-  correct is exactly the mos-kind-title-card overflow bug (see git history)
-  repeating itself.
-- `editor.ts` — the GUI card editor, same `ha-form`-based structure as
-  mos-kind-title-card's.
+  header/info/metrics/pools-temp/guest-status/services sections (each
+  independently toggleable and, below the header, reorderable via
+  `section_order`), and owns the two `HistoryBuffer` instances. Does
+  **not** implement a fixed `getLayoutOptions()` grid size — this card's
+  real height varies with which sections are enabled, their order, and how
+  many pools are discovered, and asserting a static size that's
+  usually-but-not-always correct is exactly the mos-kind-title-card
+  overflow bug (see git history) repeating itself.
+- `editor.ts` — the GUI card editor: same `ha-form`-based structure as
+  mos-kind-title-card's, but with ~30 fields grouped into `expandable`
+  schema sections (`flatten: true`, so the underlying config stays flat)
+  to stay usable, combined with the same conditional-field-inclusion
+  technique for sub-options that only matter once their toggle is on.
+  `section_order` is deliberately **not** a schema field — YAML-only, see
+  the package README.
 - `types.ts` — `MosServerSummaryCardConfig`, the full YAML/GUI config
   schema.
 

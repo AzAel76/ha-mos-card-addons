@@ -45,8 +45,8 @@ import {
 } from "./server-metrics";
 import { fetchHistory, HistoryBuffer } from "./history";
 import type { HistoryPoint } from "./history";
-import { formatBytes, formatSigFigs } from "./unit";
-import { GestureTracker, resolveActionTokens } from "./gesture";
+import { formatBytes, formatSigFigs, stateToBytes } from "./unit";
+import { fillPlaceholders, GestureTracker, moreInfoEntity } from "./gesture";
 import type { GestureAction } from "./gesture";
 
 const CARD_VERSION = "0.1.0"; // x-release-please-version
@@ -68,6 +68,15 @@ interface ServiceItem {
   label: string;
   state: "on" | "off" | "warning";
   tooltip: string;
+}
+
+interface InfoItem {
+  icon: string;
+  label: string;
+  /** A plain string or a Lit template (e.g. a formatted byte value with a styled unit suffix). */
+  value: unknown;
+  /** MOS Version's update-available indicator. */
+  badge?: boolean;
 }
 
 /** What discovery resolved for the current server. Recomputed only when the registries or config change, never on a bare `hass` tick. */
@@ -437,14 +446,25 @@ export class MosServerSummaryCard extends LitElement {
     if (!actionConfig) {
       return;
     }
-    const tokens = {
+    const values = {
       pool_name: pool.name,
-      pool_usage_entity: pool.usageEntity ?? "",
-      pool_problem_entity: pool.problemEntity ?? "",
+      pool_usage_entity: pool.usageEntity,
+      pool_problem_entity: pool.problemEntity,
     };
-    const resolvedAction = resolveActionTokens(actionConfig, tokens);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handleAction(this, this.hass, { [`${action}_action`]: resolvedAction } as any, action);
+    // handleAction reads a more-info entity off the config object it's
+    // handed, never off the action config itself — moreInfoEntity lifts it
+    // out (see gesture.ts). Without this, "more-info" with an [[entity]]
+    // placeholder would silently do nothing.
+    handleAction(
+      this,
+      this.hass,
+      {
+        entity: moreInfoEntity(actionConfig, values) ?? pool.usageEntity,
+        [`${action}_action`]: fillPlaceholders(actionConfig, values),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+      action,
+    );
   }
 
   private _cpuTempActionConfig(action: GestureAction) {
@@ -463,13 +483,20 @@ export class MosServerSummaryCard extends LitElement {
     if (!actionConfig) {
       return;
     }
-    const tokens = {
+    const values = {
       server_name: resolved.serverName,
-      cpu_temp_entity: resolved.cpuTemperatureEntity ?? "",
+      cpu_temp_entity: resolved.cpuTemperatureEntity,
     };
-    const resolvedAction = resolveActionTokens(actionConfig, tokens);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handleAction(this, this.hass, { [`${action}_action`]: resolvedAction } as any, action);
+    handleAction(
+      this,
+      this.hass,
+      {
+        entity: moreInfoEntity(actionConfig, values) ?? resolved.cpuTemperatureEntity,
+        [`${action}_action`]: fillPlaceholders(actionConfig, values),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+      action,
+    );
   }
 
   protected render() {
@@ -501,6 +528,7 @@ export class MosServerSummaryCard extends LitElement {
     const showUptime = this._config.show_uptime ?? true;
     const uptimeStyle = this._config.uptime_style ?? "relative";
     const showInfo = this._config.show_info ?? true;
+    const infoLayout = this._config.info_layout ?? "grid";
     const showCpuMetric = this._config.show_cpu_metric ?? true;
     const showMemoryMetric = this._config.show_memory_metric ?? true;
     const sparklineShowValueScale = this._config.sparkline_show_value_scale ?? false;
@@ -553,13 +581,15 @@ export class MosServerSummaryCard extends LitElement {
     const arch = resolved.archEntity ? hass.states[resolved.archEntity]?.state : undefined;
     const cpuBrand = resolved.cpuBrandEntity ? hass.states[resolved.cpuBrandEntity]?.state : undefined;
     const baseOs = resolved.baseOsEntity ? hass.states[resolved.baseOsEntity]?.state : undefined;
+    // memory_installed is device_class: data_size with a suggested display
+    // unit (e.g. GiB) — its state string is already in that unit, not raw
+    // bytes, so stateToBytes (which also reads unit_of_measurement) is
+    // required here; a bare Number(state) previously produced "16.0B" from
+    // a state of "16.0" GiB.
     const memoryInstalledBytes = resolved.memoryInstalledEntity
-      ? Number(hass.states[resolved.memoryInstalledEntity]?.state)
+      ? stateToBytes(hass.states[resolved.memoryInstalledEntity])
       : undefined;
-    const memoryInstalled =
-      memoryInstalledBytes !== undefined && Number.isFinite(memoryInstalledBytes)
-        ? formatBytes(memoryInstalledBytes)
-        : undefined;
+    const memoryInstalled = memoryInstalledBytes !== undefined ? formatBytes(memoryInstalledBytes) : undefined;
 
     // --- System metrics ---
     const cpuLoadPct = resolved.cpuLoadEntity ? Number(hass.states[resolved.cpuLoadEntity]?.state) : undefined;
@@ -582,58 +612,74 @@ export class MosServerSummaryCard extends LitElement {
     const nfsOn = resolved.nfsEnabledEntity ? hass.states[resolved.nfsEnabledEntity]?.state === "on" : false;
     const diskWarning = anyOn(hass, resolved.diskSmartWarningEntities);
 
+    const memoryInstalledValue = memoryInstalled
+      ? html`${memoryInstalled.value}<span class="unit">${memoryInstalled.unit}</span>`
+      : "–";
+    const infoItems: InfoItem[] = [
+      { icon: "mdi:tag", label: "MOS Version", value: mosVersion ?? "–", badge: mosUpdateAvailable },
+      { icon: "mdi:cpu-64-bit", label: "CPU", value: cpuBrand ?? "–" },
+      { icon: "mdi:penguin", label: "Kernel", value: runningKernel ?? "–" },
+      { icon: "mdi:chip", label: "Architecture", value: arch ?? "–" },
+      { icon: "mdi:ghost", label: "Base OS", value: baseOs ?? "–" },
+      { icon: "mdi:memory", label: "Memory Installed", value: memoryInstalledValue },
+    ];
+    const updateDot = html`<span class="info-update-dot"></span>`;
+
     const infoGrid = showInfo
-      ? html`
-          <div class="info-grid">
-            <div class="info-item">
-              <div class="info-icon-wrap">
-                <ha-icon class="info-icon" icon="mdi:tag"></ha-icon>
-                ${mosUpdateAvailable ? html`<span class="corner-badge"></span>` : nothing}
-              </div>
-              <div class="info-text">
-                <div class="info-label">MOS Version</div>
-                <div class="info-value">${mosVersion ?? "–"}</div>
-              </div>
+      ? infoLayout === "grid"
+        ? html`
+            <div class="info-grid">
+              ${infoItems.map(
+                (item) => html`
+                  <div class="info-item">
+                    <div class="info-icon-wrap">
+                      <ha-icon class="info-icon" icon=${item.icon}></ha-icon>
+                      ${item.badge ? html`<span class="corner-badge"></span>` : nothing}
+                    </div>
+                    <div class="info-text">
+                      <div class="info-label">${item.label}</div>
+                      <div class="info-value">${item.value}</div>
+                    </div>
+                  </div>
+                `,
+              )}
             </div>
-            <div class="info-item">
-              <ha-icon class="info-icon" icon="mdi:cpu-64-bit"></ha-icon>
-              <div class="info-text">
-                <div class="info-label">CPU</div>
-                <div class="info-value">${cpuBrand ?? "–"}</div>
+          `
+        : infoLayout === "chips"
+          ? html`
+              <div class="info-chips">
+                ${infoItems.map(
+                  (item) => html`
+                    <div class="info-chip">
+                      <ha-icon icon=${item.icon}></ha-icon>
+                      <span>${item.value}</span>
+                      ${item.badge ? updateDot : nothing}
+                    </div>
+                  `,
+                )}
               </div>
-            </div>
-            <div class="info-item">
-              <ha-icon class="info-icon" icon="mdi:penguin"></ha-icon>
-              <div class="info-text">
-                <div class="info-label">Kernel</div>
-                <div class="info-value">${runningKernel ?? "–"}</div>
-              </div>
-            </div>
-            <div class="info-item">
-              <ha-icon class="info-icon" icon="mdi:chip"></ha-icon>
-              <div class="info-text">
-                <div class="info-label">Architecture</div>
-                <div class="info-value">${arch ?? "–"}</div>
-              </div>
-            </div>
-            <div class="info-item">
-              <ha-icon class="info-icon" icon="mdi:ghost"></ha-icon>
-              <div class="info-text">
-                <div class="info-label">Base OS</div>
-                <div class="info-value">${baseOs ?? "–"}</div>
-              </div>
-            </div>
-            <div class="info-item">
-              <ha-icon class="info-icon" icon="mdi:memory"></ha-icon>
-              <div class="info-text">
-                <div class="info-label">Memory Installed</div>
-                <div class="info-value">
-                  ${memoryInstalled ? html`${memoryInstalled.value}<span class="unit">${memoryInstalled.unit}</span>` : "–"}
+            `
+          : infoLayout === "list"
+            ? html`
+                <div class="info-list">
+                  ${infoItems.map(
+                    (item) => html`
+                      <div class="info-list-row">
+                        <span class="info-list-label">${item.label}</span>
+                        <span class="info-list-value">${item.value}${item.badge ? updateDot : nothing}</span>
+                      </div>
+                    `,
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-        `
+              `
+            : html`
+                <div class="info-line">
+                  ${infoItems.map(
+                    (item, index) =>
+                      html`${index > 0 ? " · " : nothing}${item.value}${item.badge ? updateDot : nothing}`,
+                  )}
+                </div>
+              `
       : nothing;
 
     const metricsSection =
@@ -1045,6 +1091,59 @@ export class MosServerSummaryCard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .info-update-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--info-color, #039be5);
+      margin-left: 3px;
+      vertical-align: middle;
+    }
+    .info-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .info-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+    }
+    .info-chip ha-icon {
+      --mdc-icon-size: 14px;
+      color: var(--secondary-text-color);
+    }
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .info-list-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .info-list-label {
+      color: var(--secondary-text-color);
+    }
+    .info-list-value {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .info-line {
+      font-size: 12px;
+      font-weight: 500;
+      overflow-wrap: break-word;
     }
     .metrics {
       display: flex;

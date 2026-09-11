@@ -5,19 +5,24 @@
  * for a lightweight inline trend line, and nothing else in this codebase
  * pulls one in either.
  *
- * Two optional, independent reference overlays:
- * - `showValueScale`: faint 0/50/100% reference lines/text — CPU load and
- *   memory usage are fixed 0-100% scales, so this is a static reference,
- *   not a data-driven min/max (which would be misleading for a percentage
- *   metric).
+ * Two optional, independent reference overlays, both rendered as plain HTML
+ * (not SVG `<text>`): the SVG uses `preserveAspectRatio="none"` so the
+ * polyline fills whatever box it's given, but that non-uniformly stretches
+ * *everything* inside it, including glyph shapes — text squeezed into the
+ * viewBox comes out visibly distorted. Plain HTML overlays sit outside that
+ * scaling entirely.
+ * - `showValueScale`: faint 0/50/100% reference — CPU load and memory usage
+ *   are fixed 0-100% scales, so this is a static reference, not a
+ *   data-driven min/max (which would be misleading for a percentage
+ *   metric). Anchored to the right edge.
  * - `showTimeScale`: tick labels for the actual first/last point's age
- *   ("-3h", "now") — derived from the real timestamps in `points`, not
- *   just the configured lookback window, so it's still correct before a
- *   full window of history has accumulated.
+ *   ("-3h", "now") — derived from the real timestamps in `points`, not just
+ *   the configured lookback window, so it's still correct before a full
+ *   window of history has accumulated. Rendered as a row below the plot.
  *
- * The host's rendered height grows to fit whichever overlays are enabled
- * (via the SVG's own viewBox), so the card sizes the `.sparkline` element
- * accordingly rather than this component being clipped.
+ * The host's rendered height grows to fit whichever overlays are enabled,
+ * so the card sizes the `.sparkline` element accordingly rather than this
+ * component being clipped.
  */
 import { LitElement, html, svg, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
@@ -25,8 +30,6 @@ import type { HistoryPoint } from "./history";
 
 const WIDTH = 100;
 const PLOT_HEIGHT = 30;
-const TIME_SCALE_HEIGHT = 10;
-const VALUE_SCALE_INSET = 12;
 
 /** A compact "-Xh"/"-Xm"/"now" label for how long ago a timestamp was, relative to now. */
 function formatAgo(timestampMs: number): string {
@@ -55,54 +58,59 @@ export class MosSparkline extends LitElement {
     if (this.points.length < 2) {
       return nothing;
     }
-    const height = PLOT_HEIGHT + (this.showTimeScale ? TIME_SCALE_HEIGHT : 0);
-    const plotWidth = this.showValueScale ? WIDTH - VALUE_SCALE_INSET : WIDTH;
-    const plotX = this.showValueScale ? VALUE_SCALE_INSET : 0;
 
     const minT = this.points[0].t;
     const maxT = this.points[this.points.length - 1].t;
     const spanT = Math.max(1, maxT - minT);
     const coords = this.points
       .map((point) => {
-        const x = plotX + ((point.t - minT) / spanT) * plotWidth;
+        const x = ((point.t - minT) / spanT) * WIDTH;
         const y = PLOT_HEIGHT - (Math.max(0, Math.min(100, point.v)) / 100) * PLOT_HEIGHT;
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" ");
 
     return html`
-      <svg viewBox="0 0 ${WIDTH} ${height}" preserveAspectRatio="none">
+      <div class="plot">
+        <svg viewBox="0 0 ${WIDTH} ${PLOT_HEIGHT}" preserveAspectRatio="none">
+          ${
+            this.showValueScale
+              ? svg`<line x1="0" y1=${PLOT_HEIGHT / 2} x2=${WIDTH} y2=${PLOT_HEIGHT / 2} class="ref-line"></line>`
+              : nothing
+          }
+          ${svg`<polyline points=${coords} stroke=${this.color}></polyline>`}
+        </svg>
         ${
           this.showValueScale
-            ? svg`
-                <line x1=${plotX} y1=${PLOT_HEIGHT / 2} x2=${WIDTH} y2=${PLOT_HEIGHT / 2} class="ref-line"></line>
-                <text x="0" y="5" class="ref-text">100</text>
-                <text x="0" y=${PLOT_HEIGHT - 1} class="ref-text">0</text>
-              `
+            ? html`<div class="value-scale top">100</div>
+                <div class="value-scale bottom">0</div>`
             : nothing
         }
-        ${svg`<polyline points=${coords} stroke=${this.color}></polyline>`}
-        ${
-          this.showTimeScale
-            ? svg`
-                <text x=${plotX} y=${PLOT_HEIGHT + 8} class="time-text" text-anchor="start">
-                  ${formatAgo(minT)}
-                </text>
-                <text x=${WIDTH} y=${PLOT_HEIGHT + 8} class="time-text" text-anchor="end">
-                  ${formatAgo(maxT)}
-                </text>
-              `
-            : nothing
-        }
-      </svg>
+      </div>
+      ${
+        this.showTimeScale
+          ? html`
+              <div class="time-scale">
+                <span>${formatAgo(minT)}</span>
+                <span>${formatAgo(maxT)}</span>
+              </div>
+            `
+          : nothing
+      }
     `;
   }
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
       width: 100%;
       height: 100%;
+    }
+    .plot {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     svg {
       width: 100%;
@@ -121,13 +129,27 @@ export class MosSparkline extends LitElement {
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
     }
-    .ref-text {
-      font-size: 6px;
-      fill: var(--secondary-text-color);
+    .value-scale {
+      position: absolute;
+      right: 2px;
+      font-size: 8px;
+      line-height: 1;
+      color: var(--secondary-text-color);
     }
-    .time-text {
-      font-size: 6px;
-      fill: var(--secondary-text-color);
+    .value-scale.top {
+      top: 0;
+    }
+    .value-scale.bottom {
+      bottom: 0;
+    }
+    .time-scale {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      line-height: 1;
+      color: var(--secondary-text-color);
+      padding-top: 2px;
     }
   `;
 }
