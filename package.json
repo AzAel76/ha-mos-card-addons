@@ -1,21 +1,8 @@
 {
-  "name": "mos-summary-card",
-  "version": "0.1.0",
-  "description": "A ~50px Home Assistant Lovelace title card for one ha-mos virtualization kind (Docker, Compose Stacks, LXC, or VMs): running/total counts, update/problem badges, and a host-RAM memory gauge.",
-  "type": "module",
-  "scripts": {
-    "dev": "vite build --watch --mode development",
-    "build": "vite build",
-    "deploy": "bash scripts/deploy.sh"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "lit": "^3.2.1"
-  },
-  "devDependencies": {
-    "custom-card-helpers": "^1.9.0",
-    "home-assistant-js-websocket": "^9.4.0",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.11"
-  }
+  "name": "ha-mos-card-addons",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "packages/*"
+  ]
 }
