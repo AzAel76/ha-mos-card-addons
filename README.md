@@ -96,6 +96,13 @@ Assistant's native `ha-form`/selector components:
   `ha-mos-card`'s own editor uses).
 - **Kind** — Docker / Compose Stacks / LXC / Virtual Machines.
 - **Title** — optional override of the kind's display name.
+- **Accent color** — a Home Assistant color swatch, tinting the icon badge
+  and the gauge's normal-range arc (the warning/error thresholds still take
+  over above 80%/95% regardless).
+- **Layout** — `standard` (default), `compact` (shorter, denser, for tighter
+  dashboards), or `gauge_first` (swaps the gauge and count column).
+- **Show badges / Show counts / Show memory gauge** — hide any of the three
+  right-hand sections for a sparser card.
 - **Tap / Hold / Double-tap action** — standard Home Assistant action
   pickers (the card is tap/hold/double-tap interactive).
 
@@ -111,6 +118,11 @@ type: custom:mos-kind-title-card
 server: 1a2b3c4d5e6f7890abcdef1234567890
 kind: docker
 title: Docker # optional, defaults to the kind's name
+color: blue # optional; a HA color token ("blue", "primary", ...) or a literal CSS color
+layout: standard # standard | compact | gauge_first
+show_badges: true
+show_counts: true
+show_gauge: true
 tap_action:
   action: none
 hold_action:
@@ -124,6 +136,9 @@ double_tap_action:
 | `server` | device_id of the MOS server device (required) |
 | `kind` | One of `docker`, `compose`, `lxc`, `vm` (required) |
 | `title` | Overrides the kind's display name |
+| `color` | Home Assistant color token or literal CSS color, tinting the icon badge and gauge |
+| `layout` | `standard` (default), `compact`, or `gauge_first` |
+| `show_badges` / `show_counts` / `show_gauge` | Toggle each section off, default `true` |
 | `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) |
 
 ## What it shows
