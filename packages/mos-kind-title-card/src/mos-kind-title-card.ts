@@ -44,7 +44,6 @@ function sumStates(hass: HomeAssistant, entityIds: readonly string[]): number | 
   return any ? sum : undefined;
 }
 
-// eslint-disable-next-line no-console
 console.info(
   `%c MOS-KIND-TITLE-CARD %c v${CARD_VERSION} `,
   "color: white; background: #039be5; font-weight: 700;",
@@ -240,7 +239,9 @@ export class MosKindTitleCard extends LitElement {
     const kind = this._config.kind ? KIND_DEFS[this._config.kind] : undefined;
 
     if (!this._config.server || !kind) {
-      return this._shell(html`<ha-icon icon="mdi:alert-circle-outline"></ha-icon><span>Select a server and kind</span>`);
+      return this._shell(
+        html`<ha-icon icon="mdi:alert-circle-outline"></ha-icon><span>Select a server and kind</span>`,
+      );
     }
 
     if (!this._registriesLoaded) {
@@ -342,26 +343,32 @@ export class MosKindTitleCard extends LitElement {
               </div>
               <div class="stat-label">Running</div>
             </div>
-            ${hasUpdates
-              ? html`
-                  <div class="stat">
-                    <div class="stat-value">${updatesCount}</div>
-                    <div class="stat-label">Updates</div>
-                  </div>
-                `
-              : nothing}
-            ${showContainers
-              ? html`
-                  <div class="stat">
-                    <div class="stat-value ${!hasContainerRow ? "muted" : ""}">
-                      ${hasContainerRow
-                        ? html`${containersRunning ?? "–"}${containersTotal !== undefined ? html`/${containersTotal}` : nothing}`
-                        : "–"}
+            ${
+              hasUpdates
+                ? html`
+                    <div class="stat">
+                      <div class="stat-value">${updatesCount}</div>
+                      <div class="stat-label">Updates</div>
                     </div>
-                    <div class="stat-label">Containers</div>
-                  </div>
-                `
-              : nothing}
+                  `
+                : nothing
+            }
+            ${
+              showContainers
+                ? html`
+                    <div class="stat">
+                      <div class="stat-value ${!hasContainerRow ? "muted" : ""}">
+                        ${
+                          hasContainerRow
+                            ? html`${containersRunning ?? "–"}${containersTotal !== undefined ? html`/${containersTotal}` : nothing}`
+                            : "–"
+                        }
+                      </div>
+                      <div class="stat-label">Containers</div>
+                    </div>
+                  `
+                : nothing
+            }
           </div>
         `
       : nothing;
@@ -370,34 +377,40 @@ export class MosKindTitleCard extends LitElement {
       showCpu || showGauge
         ? html`
             <div class="gauges">
-              ${showCpu
-                ? html`
-                    <div class="gauge-item">
-                      <div class="gauge"><mos-memory-gauge .value=${cpuPct} icon="mdi:chip"></mos-memory-gauge></div>
-                      <div class="stat">
-                        <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">
-                          ${cpuPct !== undefined ? html`${formatSigFigs(cpuPct)}<span class="stat-unit">%</span>` : "–"}
+              ${
+                showCpu
+                  ? html`
+                      <div class="gauge-item">
+                        <div class="gauge"><mos-memory-gauge .value=${cpuPct} icon="mdi:chip"></mos-memory-gauge></div>
+                        <div class="stat">
+                          <div class="stat-value ${cpuPct === undefined ? "muted" : ""}">
+                            ${cpuPct !== undefined ? html`${formatSigFigs(cpuPct)}<span class="stat-unit">%</span>` : "–"}
+                          </div>
+                          <div class="stat-label">CPU</div>
                         </div>
-                        <div class="stat-label">CPU</div>
                       </div>
-                    </div>
-                  `
-                : nothing}
-              ${showGauge
-                ? html`
-                    <div class="gauge-item">
-                      <div class="gauge"><mos-memory-gauge .value=${gaugePct}></mos-memory-gauge></div>
-                      <div class="stat">
-                        <div class="stat-value ${!memoryFormatted ? "muted" : ""}">
-                          ${memoryFormatted
-                            ? html`${memoryFormatted.value}<span class="stat-unit">${memoryFormatted.unit}</span>`
-                            : "–"}
+                    `
+                  : nothing
+              }
+              ${
+                showGauge
+                  ? html`
+                      <div class="gauge-item">
+                        <div class="gauge"><mos-memory-gauge .value=${gaugePct}></mos-memory-gauge></div>
+                        <div class="stat">
+                          <div class="stat-value ${!memoryFormatted ? "muted" : ""}">
+                            ${
+                              memoryFormatted
+                                ? html`${memoryFormatted.value}<span class="stat-unit">${memoryFormatted.unit}</span>`
+                                : "–"
+                            }
+                          </div>
+                          <div class="stat-label">Memory</div>
                         </div>
-                        <div class="stat-label">Memory</div>
                       </div>
-                    </div>
-                  `
-                : nothing}
+                    `
+                  : nothing
+              }
             </div>
           `
         : nothing;
@@ -411,23 +424,28 @@ export class MosKindTitleCard extends LitElement {
       >
         <div class="row">
           <div class="icon-wrap">
-            <div class="icon-badge icon-badge--${iconShape}" style="background:${iconStyle === "transparent" ? "transparent" : badgeColor}; color:${iconColor}">
+            <div
+              class="icon-badge icon-badge--${iconShape}"
+              style="background:${iconStyle === "transparent" ? "transparent" : badgeColor}; color:${iconColor}"
+            >
               <ha-icon icon=${icon}></ha-icon>
             </div>
             ${showBadges && hasProblem ? html`<ha-icon class="corner-badge problem" icon="mdi:alert-circle"></ha-icon>` : nothing}
             ${showBadges && hasUpdates ? html`<ha-icon class="corner-badge update" icon="mdi:update"></ha-icon>` : nothing}
-            ${linkUrl && linkStyle === "badge"
-              ? html`
-                  <ha-icon
-                    class="corner-badge link"
-                    icon="mdi:open-in-new"
-                    title=${linkUrl}
-                    @pointerdown=${(e: Event) => e.stopPropagation()}
-                    @pointerup=${(e: Event) => e.stopPropagation()}
-                    @click=${(e: Event) => this._openLink(e, linkUrl as string)}
-                  ></ha-icon>
-                `
-              : nothing}
+            ${
+              linkUrl && linkStyle === "badge"
+                ? html`
+                    <ha-icon
+                      class="corner-badge link"
+                      icon="mdi:open-in-new"
+                      title=${linkUrl}
+                      @pointerdown=${(e: Event) => e.stopPropagation()}
+                      @pointerup=${(e: Event) => e.stopPropagation()}
+                      @click=${(e: Event) => this._openLink(e, linkUrl as string)}
+                    ></ha-icon>
+                  `
+                : nothing
+            }
           </div>
           <div class="title-col">
             <div class="title">${title}</div>
@@ -435,19 +453,21 @@ export class MosKindTitleCard extends LitElement {
           </div>
           ${layout === "gauge_first" ? gaugesBlock : countsBlock}
           ${layout === "gauge_first" ? countsBlock : gaugesBlock}
-          ${linkUrl && linkStyle === "button"
-            ? html`
-                <div
-                  class="link-button"
-                  title=${linkUrl}
-                  @pointerdown=${(e: Event) => e.stopPropagation()}
-                  @pointerup=${(e: Event) => e.stopPropagation()}
-                  @click=${(e: Event) => this._openLink(e, linkUrl as string)}
-                >
-                  <ha-icon icon="mdi:open-in-new"></ha-icon>
-                </div>
-              `
-            : nothing}
+          ${
+            linkUrl && linkStyle === "button"
+              ? html`
+                  <div
+                    class="link-button"
+                    title=${linkUrl}
+                    @pointerdown=${(e: Event) => e.stopPropagation()}
+                    @pointerup=${(e: Event) => e.stopPropagation()}
+                    @click=${(e: Event) => this._openLink(e, linkUrl as string)}
+                  >
+                    <ha-icon icon="mdi:open-in-new"></ha-icon>
+                  </div>
+                `
+              : nothing
+          }
         </div>
       </ha-card>
     `;
@@ -747,6 +767,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "mos-kind-title-card",
   name: "MOS Kind Title Card",
-  description: "A compact ~50px title bar for one MOS virtualization kind (Docker/Compose/LXC/VMs): running count, updates/problem badges, and a host-RAM memory gauge.",
+  description:
+    "A compact ~50px title bar for one MOS virtualization kind (Docker/Compose/LXC/VMs): running count, updates/problem badges, and a host-RAM memory gauge.",
   preview: false,
 });

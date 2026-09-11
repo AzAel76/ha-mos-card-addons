@@ -64,8 +64,9 @@ export class MosMemoryGauge extends LitElement {
               stroke-width=${STROKE}
               stroke-dasharray="${SWEEP_LENGTH} ${CIRCUMFERENCE}"
             ></circle>
-            ${known
-              ? svg`<circle
+            ${
+              known
+                ? svg`<circle
                   class="value"
                   cx=${SIZE / 2}
                   cy=${SIZE / 2}
@@ -74,7 +75,8 @@ export class MosMemoryGauge extends LitElement {
                   stroke=${color}
                   stroke-dasharray="${valueLength} ${CIRCUMFERENCE}"
                 ></circle>`
-              : nothing}
+                : nothing
+            }
           </g>
         </svg>
         <ha-icon class="center-icon" icon=${this.icon}></ha-icon>

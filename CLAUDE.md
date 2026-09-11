@@ -36,8 +36,25 @@ npm run build --workspace=packages/mos-kind-title-card  # one-shot production bu
 npm run deploy --workspace=packages/mos-kind-title-card # build + scp to a HA instance over SSH
 ```
 
-There is no test suite or linter configured in either the root or the
-package.
+There is no test suite. Linting/formatting/type-checking run from the root
+across all packages:
+
+```bash
+npm run lint          # eslint
+npm run lint:fix
+npm run lint:md        # markdownlint-cli2, all READMEs/CLAUDE.md
+npm run format         # prettier --write
+npm run format:check
+npm run typecheck      # tsc --noEmit (currently hardcoded to mos-kind-title-card's tsconfig)
+```
+
+A Husky `pre-commit` hook runs `lint-staged` (Prettier/ESLint/markdownlint
+on staged files only) and a `commit-msg` hook runs commitlint — commits
+must follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `ci:`, `perf:`),
+lowercase subject, ≤72-character header — see `.commitlintrc.json`. This
+isn't just style: release-please (see Releasing below) derives version
+bumps and changelog entries from these commit types.
 
 `npm run dev`/`build` write a single self-contained JS module to `dist/`
 (one file, everything including `lit` bundled in — see
@@ -62,7 +79,7 @@ Source layout (`packages/mos-kind-title-card/src/`):
   display name/icon, the entity `translation_key` prefixes for its
   memory/CPU metrics, its MOS web-UI path segment, and (where they exist)
   its PR-114 summary sensors (running/total/updates counts, which live on
-  the *server* device, not per-guest). Note the `vm` kind's real mismatch
+  the _server_ device, not per-guest). Note the `vm` kind's real mismatch
   between device `model_id: "virtual_machine"` and entity prefix `vm_` —
   confirmed against the integration's source, not assumed.
 - `devices.ts` — device/entity registry discovery, architecture ported
@@ -80,8 +97,9 @@ Source layout (`packages/mos-kind-title-card/src/`):
   arithmetic, since HA auto-converts each sensor's displayed unit (MiB vs
   GiB, or a user override to decimal MB/GB) independently; summing
   display-unit numbers directly would silently produce wrong percentages.
-  Also owns the shared 3-significant-figure formatting rule for every
-  gauge-adjacent number.
+  Also owns the shared ≤4-character formatting rule for every
+  gauge-adjacent number (magnitude-tiered fixed decimals, not literal
+  significant figures — that broke for sub-1 values).
 - `gauge.ts` — a hand-built radial percentage gauge (270° arc, icon
   centered), deliberately not HA's own `ha-gauge` (built for a much larger
   full gauge-card layout). Uses a fixed traffic-light color scale
@@ -104,11 +122,29 @@ schema or visual behavior, since the two must stay in sync.
 
 ## Releasing
 
-Pushing a tag matching `mos-kind-title-card-v*` runs
-[.github/workflows/release-mos-kind-title-card.yml](.github/workflows/release-mos-kind-title-card.yml),
-which builds the package and attaches `dist/mos-kind-title-card.js` to a
-GitHub release for that tag — the asset name `hacs.json`'s `filename`
-field expects. Bump `CARD_VERSION` in `mos-kind-title-card.ts` and
-`version` in the package's `package.json` (keep them equal), and move the
-package's `CHANGELOG.md` "Unreleased" entries under a new version heading,
-before tagging.
+Releases are automated via [release-please](https://github.com/googleapis/release-please)
+(`release-please-config.json` + `.release-please-manifest.json`, package
+path `packages/mos-kind-title-card`) — there is no manual version bump or
+tagging step. The flow:
+
+1. Commit to `main` using Conventional Commits (see Commands above).
+2. [.github/workflows/release-please.yml](.github/workflows/release-please.yml)'s
+   `release-please` job opens/updates a "release PR" that accumulates
+   `fix`/`feat`/etc. commits since the last release, computing the next
+   version and generating `packages/mos-kind-title-card/CHANGELOG.md`
+   entries from the commit log.
+3. Merging that PR makes release-please bump `version` in `package.json`
+   and `CARD_VERSION` in `mos-kind-title-card.ts` (via `extra-files`, a
+   literal string replace — keep the version string unique in that file),
+   create a `mos-kind-title-card-v*` tag, and publish the GitHub release.
+4. The same workflow's `publish` job (`needs: release-please`, gated on
+   `release_created`) then builds the package and attaches
+   `dist/mos-kind-title-card.js` to that release — the asset name
+   `hacs.json`'s `filename` field expects. This runs in the _same_
+   workflow run rather than being triggered by the tag push, since a tag
+   created via the default `GITHUB_TOKEN` doesn't cascade into triggering
+   a separate workflow.
+
+release-please only proposes a release once a commit on `main` uses a
+recognized Conventional Commit type — it won't touch history that predates
+adopting it.

@@ -1,0 +1,29 @@
+name: Validate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  # The scheduled run is the point of this workflow: HACS is the only way
+  # this card is installed, and what breaks an install is usually not a code
+  # change at all — a release without the built asset attached, or hacs.json
+  # drifting from what HACS expects of a plugin. A nightly check catches that
+  # between commits.
+  hacs: # https://github.com/hacs/action
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run HACS validation
+        uses: hacs/action@main
+        with:
+          category: plugin

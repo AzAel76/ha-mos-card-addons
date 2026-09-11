@@ -1,0 +1,12 @@
+{
+  // Files and directories excluded from markdownlint validation.
+  // Keep in sync with .prettierignore.
+  "ignores": [
+    "node_modules/**",
+    "dist/**",
+    // Auto-generated release file
+    "packages/*/CHANGELOG.md",
+    // Agent scratch state, git-excluded and not part of the repository's docs
+    ".claude/**",
+  ],
+}

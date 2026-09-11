@@ -42,7 +42,6 @@ export function toBytes(value: number, unit: string | null | undefined): number 
   if (multiplier === undefined) {
     if (!warnedUnits.has(unit)) {
       warnedUnits.add(unit);
-      // eslint-disable-next-line no-console
       console.warn(`mos-kind-title-card: unrecognized data-size unit "${unit}", excluding from sums`);
     }
     return undefined;

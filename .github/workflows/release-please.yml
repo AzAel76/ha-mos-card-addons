@@ -1,0 +1,64 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+# Required permissions for GITHUB_TOKEN to create releases and pull requests.
+#
+# Additionally, "Allow GitHub Actions to create and approve pull requests" must
+# be enabled in this repository under Settings > Actions > General.
+# See: https://github.com/googleapis/release-please-action?tab=readme-ov-file#workflow-permissions
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs['packages/mos-kind-title-card--release_created'] }}
+      tag_name: ${{ steps.release.outputs['packages/mos-kind-title-card--tag_name'] }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # HACS installs the card by downloading the asset named in hacs.json from
+  # the release, so a release without the built bundle attached is not
+  # installable. This runs only on the push that merges a release PR, when
+  # release-please has already tagged the commit and bumped both version
+  # sources (package.json and the CARD_VERSION extra-file).
+  #
+  # A tag/release created by release-please's own GITHUB_TOKEN does not
+  # cascade into triggering a separate tag-push-triggered workflow (GitHub
+  # suppresses that to prevent loops), so this job lives here instead,
+  # chained via job outputs within the same workflow run.
+  publish:
+    name: Attach built card to the release
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build --workspace=packages/mos-kind-title-card
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: packages/mos-kind-title-card/dist/mos-kind-title-card.js

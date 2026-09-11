@@ -7,8 +7,8 @@ integration, and its companion
 
 ## Packages
 
-| Package | Description |
-| --- | --- |
+| Package                                             | Description                                                                                                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [mos-kind-title-card](packages/mos-kind-title-card) | A compact title-bar card summarizing one virtualization kind (Docker, Compose Stacks, LXC, VMs): running/total counts, update/problem badges, and a memory gauge. |
 
 Each package is built and distributed independently (its own `dist/`
@@ -53,6 +53,22 @@ npm run deploy --workspace=packages/mos-kind-title-card
 
 See each package's own README for details on its build, deploy, and HACS
 setup.
+
+## Contributing
+
+```bash
+npm run lint
+npm run typecheck
+npm run lint:md
+npm run format
+```
+
+A pre-commit hook runs these (scoped to staged files) automatically.
+Commits must follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`fix:`, `feat:`, `chore:`, ...) — a commit-msg hook enforces this, and
+[release-please](https://github.com/googleapis/release-please) uses it to
+automate version bumps and changelogs. See [CLAUDE.md](CLAUDE.md) for
+details.
 
 ## License
 

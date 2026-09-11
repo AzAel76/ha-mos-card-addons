@@ -4,10 +4,10 @@ A compact (~50px by default — grows a little taller only if you enable
 enough optional stats to need it) Lovelace title-bar card for Home
 Assistant, one per virtualization "kind" exposed by the
 [ha-mos](https://github.com/anym001/ha-mos) NAS integration: Docker, Compose
-Stacks, LXC, or Virtual Machines. Envisioned to act as a title card for 
-[expander-card](https://github.com/MelleD/lovelace-expander-card) it can also be placed in 
- a `vertical-stack` directly above 
- [ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row
+Stacks, LXC, or Virtual Machines. Envisioned to act as a title card for
+[expander-card](https://github.com/MelleD/lovelace-expander-card) it can also be placed in
+a `vertical-stack` directly above
+[ha-mos-card](https://github.com/anym001/ha-mos-card)'s detailed row
 list for that kind, as a glanceable, semi-interactive header — icon, running
 count, update/problem badges, cpu and memory gauges, left to right.
 
@@ -152,7 +152,7 @@ Assistant's native `ha-form`/selector components:
   override** if a given MOS version differs. On by default; simply doesn't
   appear if the server has no `configuration_url`.
 - **Link style** — `Corner badge on icon` (default, compact) or `Standalone
-  button` (a separate tappable icon at the end of the row — more visible,
+button` (a separate tappable icon at the end of the row — more visible,
   costs a bit more width).
 - **Show container count** (Compose only) — the containers-within-stacks
   ratio (distinct from stacks running/total), as an extra stat. Off by
@@ -193,24 +193,24 @@ double_tap_action:
   action: none
 ```
 
-| Option | Purpose |
-|---|---|
-| `server` | device_id of the MOS server device (required) |
-| `kind` | One of `docker`, `compose`, `lxc`, `vm` (required) |
-| `title` | Overrides the kind's display name |
-| `icon` | Overrides the kind's default mdi icon |
-| `icon_style` | `filled` (default, colored circle) or `transparent` (no circle) |
-| `icon_shape` | `circle` (default) or `square` (rounded square) |
-| `color` | Home Assistant color token or literal CSS color for the icon background (filled) or the icon itself (transparent) |
-| `icon_color` | Overrides the icon glyph's own color independently of `color` |
-| `layout` | `standard` (default), `compact`, or `gauge_first` |
-| `show_badges` / `show_counts` / `show_gauge` | Toggle each section off, default `true` |
-| `show_cpu` | Extra aggregate CPU-usage gauge, grouped with memory, default `false` |
-| `show_link` | Tappable link to this kind's page in MOS's own web UI, default `true` |
-| `link_style` | `badge` (default, on the icon) or `button` (standalone, end of row) |
-| `link_path` | Overrides the kind's default URL path segment (`docker`/`lxc`/`vm`) |
-| `show_containers` | Containers-within-stacks ratio (compose only), default `false` |
-| `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) |
+| Option                                             | Purpose                                                                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `server`                                           | device_id of the MOS server device (required)                                                                     |
+| `kind`                                             | One of `docker`, `compose`, `lxc`, `vm` (required)                                                                |
+| `title`                                            | Overrides the kind's display name                                                                                 |
+| `icon`                                             | Overrides the kind's default mdi icon                                                                             |
+| `icon_style`                                       | `filled` (default, colored circle) or `transparent` (no circle)                                                   |
+| `icon_shape`                                       | `circle` (default) or `square` (rounded square)                                                                   |
+| `color`                                            | Home Assistant color token or literal CSS color for the icon background (filled) or the icon itself (transparent) |
+| `icon_color`                                       | Overrides the icon glyph's own color independently of `color`                                                     |
+| `layout`                                           | `standard` (default), `compact`, or `gauge_first`                                                                 |
+| `show_badges` / `show_counts` / `show_gauge`       | Toggle each section off, default `true`                                                                           |
+| `show_cpu`                                         | Extra aggregate CPU-usage gauge, grouped with memory, default `false`                                             |
+| `show_link`                                        | Tappable link to this kind's page in MOS's own web UI, default `true`                                             |
+| `link_style`                                       | `badge` (default, on the icon) or `button` (standalone, end of row)                                               |
+| `link_path`                                        | Overrides the kind's default URL path segment (`docker`/`lxc`/`vm`)                                               |
+| `show_containers`                                  | Containers-within-stacks ratio (compose only), default `false`                                                    |
+| `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/)                        |
 
 ## What it shows
 
@@ -249,11 +249,15 @@ The repo root's `hacs.json` (HACS reads it from the repository root, not
 from this package directory) lets the repo be added to Home Assistant as a
 [HACS](https://hacs.xyz) custom repository (category: Dashboard).
 
-Releases are built and published automatically: pushing a tag matching
-`mos-kind-title-card-v*` (e.g. `mos-kind-title-card-v0.1.0`) triggers
-[.github/workflows/release-mos-kind-title-card.yml](../../.github/workflows/release-mos-kind-title-card.yml),
-which builds the package and attaches `dist/mos-kind-title-card.js` to a
-GitHub release for that tag — the exact asset `hacs.json`'s `filename`
-points at. Before tagging, bump both `CARD_VERSION` in
-`src/mos-kind-title-card.ts` and `version` in `package.json` to match, and
-add an entry to [CHANGELOG.md](CHANGELOG.md).
+Releases are fully automated via [release-please](https://github.com/googleapis/release-please) —
+there's no manual tagging. Commit to `main` using
+[Conventional Commits](https://www.conventionalcommits.org/) (`fix:`,
+`feat:`, etc.); release-please opens a PR that accumulates those changes
+and writes [CHANGELOG.md](CHANGELOG.md); merging it bumps `version` in
+`package.json` and `CARD_VERSION` in `src/mos-kind-title-card.ts`, tags
+`mos-kind-title-card-v*`, publishes the GitHub release, and a follow-up
+step in the same workflow
+([.github/workflows/release-please.yml](../../.github/workflows/release-please.yml))
+builds the package and attaches `dist/mos-kind-title-card.js` to it — the
+exact asset `hacs.json`'s `filename` points at. See
+[CLAUDE.md](../../CLAUDE.md#releasing) for the full flow.
