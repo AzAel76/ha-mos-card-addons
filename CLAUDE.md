@@ -109,5 +109,6 @@ Pushing a tag matching `mos-kind-title-card-v*` runs
 which builds the package and attaches `dist/mos-kind-title-card.js` to a
 GitHub release for that tag — the asset name `hacs.json`'s `filename`
 field expects. Bump `CARD_VERSION` in `mos-kind-title-card.ts` and
-`version` in the package's `package.json` (keep them equal) before
-tagging.
+`version` in the package's `package.json` (keep them equal), and move the
+package's `CHANGELOG.md` "Unreleased" entries under a new version heading,
+before tagging.

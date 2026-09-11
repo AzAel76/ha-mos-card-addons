@@ -56,4 +56,4 @@ setup.
 
 ## License
 
-MIT
+[MIT](LICENCE.md)

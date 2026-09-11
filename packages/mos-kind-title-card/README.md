@@ -255,4 +255,5 @@ Releases are built and published automatically: pushing a tag matching
 which builds the package and attaches `dist/mos-kind-title-card.js` to a
 GitHub release for that tag — the exact asset `hacs.json`'s `filename`
 points at. Before tagging, bump both `CARD_VERSION` in
-`src/mos-kind-title-card.ts` and `version` in `package.json` to match.
+`src/mos-kind-title-card.ts` and `version` in `package.json` to match, and
+add an entry to [CHANGELOG.md](CHANGELOG.md).
