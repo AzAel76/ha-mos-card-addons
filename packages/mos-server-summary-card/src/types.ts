@@ -44,7 +44,7 @@ export interface MosServerSummaryCardConfig extends LovelaceCardConfig {
   sparkline_show_time_scale?: boolean;
   /** One usage pill per discovered storage pool. Default true. */
   show_pools?: boolean;
-  /** Per-pool label overrides, keyed by the pool's auto-detected name (e.g. "Data") — the value fully replaces the pill's label. */
+  /** Per-pool label overrides, keyed by the pool's auto-detected name (e.g. "Data") — the value fully replaces the pill's label. Only needed for a genuine rename (e.g. "Data" → "Storage"); the auto-detected name already strips any "<server> Pool " prefix, so it doesn't need this just to look clean. */
   pool_labels?: Record<string, string>;
   /** Shared tap/hold/double-tap actions applied to every pool pill. Support [[pool_name]]/[[pool_usage_entity]]/[[pool_problem_entity]] tokens, substituted per pool at fire time. */
   pool_tap_action?: ActionConfig;

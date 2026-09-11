@@ -53,6 +53,13 @@ Versions correspond to `mos-server-summary-card-v*` tags/releases in this repo
   convention, and deliberately not `{{ }}`, which reads as Jinja), and a
   `more-info` action's `entity` is now correctly lifted to the top-level
   config `handleAction` actually reads it from.
+- Pool pill labels showed a doubled "Pool" (e.g. "MOSBEE Pool Data Pool
+  Usage") when a pool device's friendly name carried a prefix ha-mos never
+  added (e.g. the server's own name, prepended by hand or by Home
+  Assistant's own device naming) — the auto-detected name now strips
+  through the *last* "Pool " rather than requiring it as a strict prefix,
+  so `pool_labels` is no longer needed just to clean this up (it's still
+  there for a genuine rename).
 
 ### Changed
 

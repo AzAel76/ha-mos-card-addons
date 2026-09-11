@@ -147,14 +147,23 @@ export function selectDiskDevices(devices: readonly DeviceRegistryEntry[], serve
   );
 }
 
+/** Strips a leading "...Pool " (through its last occurrence) off a device name. */
+const POOL_PREFIX = /^.*Pool /;
+
 /**
- * A pool device's own name, e.g. "Pool Data" → "Data". ha-mos always
- * prefixes it this way (confirmed in `sensor/pools.py`); falls back to the
- * raw name if a future version stops doing so, rather than mangling it.
+ * A pool device's own name, e.g. "Pool Data" → "Data". ha-mos always names
+ * the underlying device this way (confirmed in `sensor/pools.py`), but
+ * `name_by_user` — what `poolDisplayName` prefers, since it's the name a
+ * user actually sees and often renames — can carry a prefix ha-mos never
+ * added, e.g. "MOSBEE Pool Data" (the server's own name, prepended by hand
+ * or by Home Assistant's own device naming). Stripping through the *last*
+ * "Pool " rather than requiring it as a strict prefix handles both;
+ * falls back to the raw name when there's no "Pool " at all, rather than
+ * mangling a fully custom rename.
  */
 export function poolDisplayName(device: DeviceRegistryEntry): string {
   const name = device.name_by_user || device.name || "";
-  return name.startsWith("Pool ") ? name.slice("Pool ".length) : name;
+  return name.replace(POOL_PREFIX, "");
 }
 
 /** Index the entity registry by device, dropping entities that cannot render. */
