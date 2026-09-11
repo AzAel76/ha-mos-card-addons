@@ -216,9 +216,16 @@ ever moves that package's release PR. The flow, per package:
    from the commit log.
 3. Merging that PR makes release-please bump `version` in the package's
    `package.json` and `CARD_VERSION` in its main `.ts` file (via
-   `extra-files`, a literal string replace — keep the version string unique
-   in that file), create a `<package-name>-v*` tag, and publish the GitHub
-   release.
+   `extra-files`), create a `<package-name>-v*` tag, and publish the GitHub
+   release. The `CARD_VERSION` line needs a trailing `// x-release-please-version`
+   comment for this to work — release-please's generic `extra-files`
+   updater does **not** search a file for a bare version string; without
+   that exact annotation on the line, it silently leaves the file
+   untouched (confirmed against release-please's own source,
+   `src/updaters/generic.ts`, after this went unnoticed in a real release
+   PR that updated `package.json` but not the `.ts` file). Any new
+   `CARD_VERSION`-style constant added to a package needs the same
+   annotation.
 4. The same workflow has one `publish-<package>` job per package
    (`needs: release-please`, each gated on that package's own
    `..._released` output) that then builds it and attaches

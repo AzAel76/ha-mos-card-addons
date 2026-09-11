@@ -46,7 +46,7 @@ import { fetchHistory, HistoryBuffer } from "./history";
 import type { HistoryPoint } from "./history";
 import { formatBytes, formatSigFigs } from "./unit";
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.1.0"; // x-release-please-version
 
 console.info(
   `%c MOS-SERVER-SUMMARY-CARD %c v${CARD_VERSION} `,
