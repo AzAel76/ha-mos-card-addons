@@ -11,7 +11,7 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit -p packages/mos-kind-title-card/tsconfig.json",
+    "typecheck": "tsc --noEmit -p packages/mos-kind-title-card/tsconfig.json && tsc --noEmit -p packages/mos-server-summary-card/tsconfig.json",
     "prepare": "husky"
   },
   "devDependencies": {

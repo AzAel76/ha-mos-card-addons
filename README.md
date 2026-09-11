@@ -7,9 +7,10 @@ integration, and its companion
 
 ## Packages
 
-| Package                                             | Description                                                                                                                                                       |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [mos-kind-title-card](packages/mos-kind-title-card) | A compact title-bar card summarizing one virtualization kind (Docker, Compose Stacks, LXC, VMs): running/total counts, update/problem badges, and a memory gauge. |
+| Package                                                     | Description                                                                                                                                                       |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [mos-kind-title-card](packages/mos-kind-title-card)         | A compact title-bar card summarizing one virtualization kind (Docker, Compose Stacks, LXC, VMs): running/total counts, update/problem badges, and a memory gauge. |
+| [mos-server-summary-card](packages/mos-server-summary-card) | A per-server summary card: identity/version info, live CPU/memory gauges with history, storage pool usage, CPU temperature, and network/service/disk status.      |
 
 Each package is built and distributed independently (its own `dist/`
 bundle, HACS metadata, and README) so it can be installed as a standalone

@@ -10,15 +10,15 @@ export default [
     ignores: ["**/dist", "**/node_modules", "*.config.js", "*.config.mjs"],
   },
   {
-    // Hardcoded to the one existing package; extend this glob (and the
-    // parserOptions.project below) when a second packages/* card is added.
+    // One tsconfig per package — extend this array when another packages/*
+    // card is added.
     files: ["packages/*/src/**/*.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
-        project: "./packages/mos-kind-title-card/tsconfig.json",
+        project: ["./packages/mos-kind-title-card/tsconfig.json", "./packages/mos-server-summary-card/tsconfig.json"],
       },
       globals: {
         window: "readonly",

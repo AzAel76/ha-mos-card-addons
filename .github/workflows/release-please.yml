@@ -19,8 +19,10 @@ jobs:
     name: Release Please
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs['packages/mos-kind-title-card--release_created'] }}
-      tag_name: ${{ steps.release.outputs['packages/mos-kind-title-card--tag_name'] }}
+      kind_title_card_released: ${{ steps.release.outputs['packages/mos-kind-title-card--release_created'] }}
+      kind_title_card_tag: ${{ steps.release.outputs['packages/mos-kind-title-card--tag_name'] }}
+      server_summary_card_released: ${{ steps.release.outputs['packages/mos-server-summary-card--release_created'] }}
+      server_summary_card_tag: ${{ steps.release.outputs['packages/mos-server-summary-card--tag_name'] }}
     steps:
       - name: Run release-please
         id: release
@@ -29,20 +31,21 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # HACS installs the card by downloading the asset named in hacs.json from
-  # the release, so a release without the built bundle attached is not
-  # installable. This runs only on the push that merges a release PR, when
-  # release-please has already tagged the commit and bumped both version
-  # sources (package.json and the CARD_VERSION extra-file).
+  # HACS installs a card by downloading the asset named in hacs.json from the
+  # release, so a release without the built bundle attached is not
+  # installable. Each of these runs only on the push that merges its own
+  # package's release PR, when release-please has already tagged the commit
+  # and bumped both version sources (package.json and the CARD_VERSION
+  # extra-file) for that package.
   #
   # A tag/release created by release-please's own GITHUB_TOKEN does not
   # cascade into triggering a separate tag-push-triggered workflow (GitHub
-  # suppresses that to prevent loops), so this job lives here instead,
+  # suppresses that to prevent loops), so these jobs live here instead,
   # chained via job outputs within the same workflow run.
-  publish:
-    name: Attach built card to the release
+  publish-kind-title-card:
+    name: Attach mos-kind-title-card to its release
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.kind_title_card_released == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -60,5 +63,29 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          tag_name: ${{ needs.release-please.outputs.kind_title_card_tag }}
           files: packages/mos-kind-title-card/dist/mos-kind-title-card.js
+
+  publish-server-summary-card:
+    name: Attach mos-server-summary-card to its release
+    needs: release-please
+    if: needs.release-please.outputs.server_summary_card_released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build --workspace=packages/mos-server-summary-card
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.server_summary_card_tag }}
+          files: packages/mos-server-summary-card/dist/mos-server-summary-card.js
