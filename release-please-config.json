@@ -1,29 +1,16 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "packages": {
-    "packages/mos-kind-title-card": {
+    "packages/mos-card-addons": {
       "release-type": "node",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
-      "extra-files": ["src/mos-kind-title-card.ts"],
-      "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Bug Fixes" },
-        { "type": "perf", "section": "Performance" },
-        { "type": "refactor", "section": "Code Refactoring", "hidden": true },
-        { "type": "chore", "section": "Maintenance", "hidden": true },
-        { "type": "docs", "section": "Documentation", "hidden": true },
-        { "type": "test", "section": "Tests", "hidden": true },
-        { "type": "ci", "section": "CI/CD", "hidden": true }
-      ]
-    },
-    "packages/mos-server-summary-card": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "extra-files": ["src/mos-server-summary-card.ts"],
+      "extra-files": [
+        "src/kind-title-card/mos-kind-title-card.ts",
+        "src/server-summary-card/mos-server-summary-card.ts",
+        "src/detail-card/mos-detail-card.ts"
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },

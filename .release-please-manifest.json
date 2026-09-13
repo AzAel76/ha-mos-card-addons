@@ -1,4 +1,3 @@
 {
-  "packages/mos-kind-title-card": "0.1.1",
-  "packages/mos-server-summary-card": "0.1.1"
+  "packages/mos-card-addons": "0.2.0"
 }

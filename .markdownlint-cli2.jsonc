@@ -6,6 +6,8 @@
     "dist/**",
     // Auto-generated release file
     "packages/*/CHANGELOG.md",
+    // Archived pre-merge changelogs, kept verbatim for history
+    "packages/*/docs/archive/**",
     // Agent scratch state, git-excluded and not part of the repository's docs
     ".claude/**",
   ],
