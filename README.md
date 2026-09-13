@@ -23,24 +23,26 @@ variants, GUI editor)._
 
 ## Installing
 
-**Most users — via [HACS](https://hacs.xyz):**
+**Via [HACS](https://hacs.xyz) (recommended):**
 
-1. HACS → ⋮ → Custom repositories → add this repository's URL, category
-   "Dashboard".
-2. Install "MOS Card Addons", then add the Lovelace resource it registers.
-3. Add any of the three cards — `type: custom:mos-kind-title-card`,
-   `custom:mos-server-summary-card`, or `custom:mos-detail-card` — via the
-   GUI editor (Add Card → search "MOS") or YAML. See each card's doc page
-   above for its full configuration reference.
+1. HACS → ⋮ (top right) → **Custom repositories**.
+2. Add:
+   - **Repository**: `https://github.com/AzAel76/ha-mos-card-addons`
+   - **Type**: `Dashboard`
+3. Find and install **MOS Card Addons** — HACS registers the Lovelace
+   resource for you.
+4. Add Card → search "MOS", or YAML `type: custom:mos-kind-title-card` /
+   `custom:mos-server-summary-card` / `custom:mos-detail-card`. See each
+   card's doc page above for its full configuration reference.
 
 **Manual install (no auto-updates):**
 
 1. Download `mos-card-addons.js` from the
    [latest release](../../releases/latest).
 2. Copy it to `<config>/www/community/mos-card-addons/mos-card-addons.js`.
-3. Settings → Dashboards → ⋮ → Resources → Add Resource: URL
-   `/local/community/mos-card-addons/mos-card-addons.js`, type "JavaScript
-   Module".
+3. Settings → Dashboards → ⋮ → Resources → Add Resource:
+   - **URL**: `/local/community/mos-card-addons/mos-card-addons.js`
+   - **Type**: `JavaScript Module`
 
 ## Requirements
 
