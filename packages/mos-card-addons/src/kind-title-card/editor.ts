@@ -137,25 +137,56 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
         },
       },
       { name: "title", selector: { text: {} } },
-      { name: "icon", selector: { icon: {} } },
-      { name: "icon_style", selector: { select: { mode: "dropdown", options: ICON_STYLE_OPTIONS } } },
-      { name: "icon_shape", selector: { select: { mode: "dropdown", options: ICON_SHAPE_OPTIONS } } },
-      { name: "color", selector: { ui_color: {} } },
-      { name: "icon_color", selector: { ui_color: {} } },
-      { name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } },
-      { name: "show_badges", selector: { boolean: {} } },
-      { name: "show_counts", selector: { boolean: {} } },
-      { name: "show_gauge", selector: { boolean: {} } },
-      { name: "show_cpu", selector: { boolean: {} } },
-      { name: "show_link", selector: { boolean: {} } },
-      { name: "link_style", selector: { select: { mode: "dropdown", options: LINK_STYLE_OPTIONS } } },
-      { name: "link_path", selector: { text: {} } },
-      // Only compose has a containers-within-stacks ratio distinct from
-      // stacks running/total — omitted for kinds that couldn't use it.
-      ...(kind?.containerRatioMetrics ? [{ name: "show_containers", selector: { boolean: {} } }] : []),
-      { name: "tap_action", selector: { ui_action: {} } },
-      { name: "hold_action", selector: { ui_action: {} } },
-      { name: "double_tap_action", selector: { ui_action: {} } },
+      {
+        type: "expandable",
+        name: "appearance_group",
+        title: "Appearance",
+        icon: "mdi:palette-outline",
+        flatten: true,
+        schema: [
+          { name: "icon", selector: { icon: {} } },
+          { name: "icon_style", selector: { select: { mode: "dropdown", options: ICON_STYLE_OPTIONS } } },
+          { name: "icon_shape", selector: { select: { mode: "dropdown", options: ICON_SHAPE_OPTIONS } } },
+          { name: "color", selector: { ui_color: {} } },
+          { name: "icon_color", selector: { ui_color: {} } },
+          { name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } },
+        ],
+      },
+      {
+        type: "expandable",
+        name: "widgets_group",
+        title: "Widgets",
+        icon: "mdi:widgets-outline",
+        flatten: true,
+        schema: [
+          { name: "show_badges", selector: { boolean: {} } },
+          { name: "show_counts", selector: { boolean: {} } },
+          { name: "show_gauge", selector: { boolean: {} } },
+          { name: "show_cpu", selector: { boolean: {} } },
+          { name: "show_link", selector: { boolean: {} } },
+          ...(this._config?.show_link !== false
+            ? [
+                { name: "link_style", selector: { select: { mode: "dropdown", options: LINK_STYLE_OPTIONS } } },
+                { name: "link_path", selector: { text: {} } },
+              ]
+            : []),
+          // Only compose has a containers-within-stacks ratio distinct from
+          // stacks running/total — omitted for kinds that couldn't use it.
+          ...(kind?.containerRatioMetrics ? [{ name: "show_containers", selector: { boolean: {} } }] : []),
+        ],
+      },
+      {
+        type: "expandable",
+        name: "interactions_group",
+        title: "Interactions",
+        icon: "mdi:gesture-tap-button",
+        flatten: true,
+        schema: [
+          { name: "tap_action", selector: { ui_action: {} } },
+          { name: "hold_action", selector: { ui_action: {} } },
+          { name: "double_tap_action", selector: { ui_action: {} } },
+        ],
+      },
     ];
   }
 
@@ -202,7 +233,7 @@ export class MosKindTitleCardEditor extends LitElement implements LovelaceCardEd
     if (localizeKey) {
       return this.hass.localize(localizeKey) || schema.name;
     }
-    return FIELD_LABELS[schema.name] ?? schema.name;
+    return schema.title ?? FIELD_LABELS[schema.name] ?? schema.name;
   };
 
   private _valueChanged(ev: CustomEvent): void {
