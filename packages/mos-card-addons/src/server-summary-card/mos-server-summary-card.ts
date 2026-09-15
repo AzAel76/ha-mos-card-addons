@@ -51,7 +51,7 @@ import { formatBytes, formatSigFigs, stateToBytes } from "../shared/unit";
 import { fillPlaceholders, GestureTracker, moreInfoEntity } from "./gesture";
 import type { GestureAction } from "./gesture";
 
-const CARD_VERSION = "0.2.0"; // x-release-please-version
+const CARD_VERSION = "0.3.0"; // x-release-please-version
 
 console.info(
   `%c MOS-SERVER-SUMMARY-CARD %c v${CARD_VERSION} `,

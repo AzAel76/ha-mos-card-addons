@@ -27,7 +27,7 @@ import type { HistoryPoint } from "../shared/history";
 import { formatBytes, formatSigFigs, stateToBytes } from "../shared/unit";
 import { GestureTracker } from "./gesture";
 
-const CARD_VERSION = "0.2.0"; // x-release-please-version
+const CARD_VERSION = "0.3.0"; // x-release-please-version
 
 console.info(
   `%c MOS-DETAIL-CARD %c v${CARD_VERSION} `,
