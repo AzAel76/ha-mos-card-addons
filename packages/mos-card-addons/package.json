@@ -1,6 +1,6 @@
 {
   "name": "mos-card-addons",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Home Assistant Lovelace cards for the ha-mos NAS integration: a per-kind title card, a per-server summary card, and a single-device detail card, distributed together as one HACS plugin.",
   "type": "module",
   "scripts": {

@@ -20,7 +20,7 @@ import {
 import type { DeviceRegistryEntry, EntityRegistryEntry } from "./devices";
 import { formatBytes, formatSigFigs, stateToBytes } from "../shared/unit";
 
-const CARD_VERSION = "0.2.0"; // x-release-please-version
+const CARD_VERSION = "0.3.0"; // x-release-please-version
 
 /** A HA named color token ("blue", "primary", ...) becomes its theme CSS var; anything else (a hex/rgb literal) passes through untouched. */
 function resolveColor(value: string | undefined): string | undefined {
