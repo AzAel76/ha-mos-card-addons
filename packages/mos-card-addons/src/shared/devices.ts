@@ -33,6 +33,8 @@ export interface DeviceRegistryEntry {
   disabled_by: string | null;
   /** The MOS server's own web UI base URL — used by mos-kind-title-card to link to its per-kind pages (e.g. `/docker`). */
   configuration_url: string | null;
+  /** `[domain, id]` pairs. Already present on every `config/device_registry/list` response; only mos-detail-card's disk/pool-linking needs to read it (see `diskSerial`), so it stayed untyped until now. */
+  identifiers?: readonly (readonly [string, string])[];
 }
 
 export interface EntityRegistryEntry {
@@ -179,6 +181,28 @@ const DISK_PREFIX = /^.*Disk /;
 export function diskDisplayName(device: DeviceRegistryEntry): string {
   const name = device.name_by_user || device.name || "";
   return name.replace(DISK_PREFIX, "");
+}
+
+/**
+ * A disk device's own physical serial, read off its registry `identifiers`
+ * rather than its name or `name_by_user` — confirmed live against a real
+ * MOS server that `disks.py` names a disk device after its Linux block
+ * device (`sdb`, `nvme0n1`, ...), never the serial, so there is no
+ * name-based shortcut here. `disks.py` registers the device's identifier as
+ * `"{entry_id}_disk_{serial}"`; this is the same join key a pool's `usage`
+ * sensor exposes as `member_disk_serials`/`parity_disk_serials` (confirmed
+ * against ha-mos v0.3.2's `sensor/pools.py`), so this is what lets a pool
+ * be resolved back to its actual disk devices. `undefined` for a device
+ * with no `_disk_`-shaped identifier (i.e. not a disk device at all).
+ */
+export function diskSerial(device: DeviceRegistryEntry): string | undefined {
+  for (const [, id] of device.identifiers ?? []) {
+    const index = id.indexOf("_disk_");
+    if (index !== -1) {
+      return id.slice(index + "_disk_".length);
+    }
+  }
+  return undefined;
 }
 
 /** Index the entity registry by device, dropping entities that cannot render. */

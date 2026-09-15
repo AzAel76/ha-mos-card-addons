@@ -17,6 +17,13 @@ export {
   selectDiskDevices,
   poolDisplayName,
   diskDisplayName,
+  diskSerial,
+  // Editor-only (the cascading server -> kind -> device picker): this
+  // card's own rendering never enumerates a server's children, since
+  // config hands it one already-known device_id directly.
+  findServerDevices,
+  selectGuestDevicesOfKind,
+  selectPoolDevices,
 } from "../shared/devices";
 
 /** Direct lookup by device id — the normal path, since config hands us the device directly. */

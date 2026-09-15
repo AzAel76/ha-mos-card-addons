@@ -66,11 +66,14 @@ export interface DetailKindDef {
   readonly runningContainersMetric?: MetricDef;
   readonly containerCountMetric?: MetricDef;
 
-  // Pool only.
+  // Pool and disk (ha-mos v0.3.3+ — closes anym001/ha-mos#119 — added a real
+  // per-disk usage/space set alongside the pool one that already existed;
+  // both kinds resolve these the same generic way in mos-detail-card.ts).
   readonly usageMetric?: MetricDef;
   readonly freeSpaceMetric?: MetricDef;
   readonly totalSpaceMetric?: MetricDef;
   readonly usedSpaceMetric?: MetricDef;
+  // Pool only.
   readonly poolTypeMetric?: MetricDef;
   readonly poolProblemMetric?: MetricDef;
   /** Conditional on filesystem type at runtime (btrfs scrub, zfs scrub, mdadm parity, ...) — resolution failing to find the entity IS the "not applicable to this pool" case, not a config flag. */
@@ -168,6 +171,10 @@ export const DETAIL_KIND_DEFS: Readonly<Record<DetailKindId, DetailKindDef>> = {
     diskSizeMetric: stripped("disk_size", "disk_"),
     smartWarningMetric: stripped("disk_smart_warning", "disk_"),
     preclearRunningMetric: stripped("disk_preclear_running", "disk_"),
+    usageMetric: stripped("disk_usage", "disk_"),
+    freeSpaceMetric: stripped("disk_free_space", "disk_"),
+    totalSpaceMetric: stripped("disk_total_space", "disk_"),
+    usedSpaceMetric: stripped("disk_used_space", "disk_"),
   },
   server: {
     id: "server",

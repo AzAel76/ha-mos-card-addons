@@ -9,6 +9,7 @@ import { severityColor } from "../shared/gauge";
 import type { MosDetailCardConfig } from "./types";
 import {
   diskDisplayName,
+  diskSerial,
   entitiesByDevice,
   findDeviceById,
   findMetricEntity,
@@ -70,6 +71,20 @@ interface StatusBadge {
   state: "on" | "off" | "warning";
 }
 
+/** One disk backing a pool (member or parity), resolved once in `_resolve()` — see its own comment for why this is a documented exception to entity ids only ever coming from registry data. */
+interface PoolMemberDisk {
+  label: string;
+  usageEntity?: string;
+  temperatureEntity?: string;
+  powerStatusEntity?: string;
+  modelEntity?: string;
+  typeEntity?: string;
+  sizeEntity?: string;
+  smartWarningEntity?: string;
+}
+
+type PoolDiskAttribute = "model" | "type" | "size" | "power_status" | "smart_warning" | "temperature";
+
 /** What discovery resolved for the configured device. Recomputed only when the registries or config change, never on a bare `hass` tick. */
 interface Resolved {
   deviceFound: boolean;
@@ -113,6 +128,9 @@ interface Resolved {
   diskTemperatures?: { label: string; entity: string }[];
   /** Entity IDs only, from `hardware.py`'s generic `/sensors` readings — each one's display name is assigned by MOS at runtime rather than a static translatable string, so it can only be read live off `hass.states[...].attributes.friendly_name`, not resolved ahead of time like every other label in this card. */
   hardwareTemperatureEntities?: string[];
+  /** Pool only: the disks actually backing this pool (ha-mos v0.3.2+), resolved from the pool's own usage-entity attributes — see `_resolve()`. `undefined` on an older ha-mos that doesn't report them; `[]` for a pool ha-mos reports with none. */
+  poolMemberDisks?: PoolMemberDisk[];
+  poolParityDisks?: PoolMemberDisk[];
 }
 
 function stateOf(hass: HomeAssistant, entityId: string | undefined): string | undefined {
@@ -121,6 +139,20 @@ function stateOf(hass: HomeAssistant, entityId: string | undefined): string | un
 
 function isOn(hass: HomeAssistant, entityId: string | undefined): boolean {
   return stateOf(hass, entityId) === "on";
+}
+
+/** A disk's icon by its own `disk_type` reading (ha-mos's raw pass-through of MOS's own type string — "NVME"/"SSD"/"USB" seen in practice, matched case-insensitively since it isn't a declared enum) — mirrors the type-specific icons MOS's own web UI disk table uses, rather than one generic harddisk icon for every disk. */
+function diskTypeIcon(type: string | undefined): string {
+  switch ((type ?? "").toLowerCase()) {
+    case "nvme":
+      return "mdi:expansion-card";
+    case "usb":
+      return "mdi:usb-flash-drive";
+    case "ssd":
+    case "hdd":
+    default:
+      return "mdi:harddisk";
+  }
 }
 
 @customElement("mos-detail-card")
@@ -274,6 +306,52 @@ export class MosDetailCard extends LitElement {
         .map((entity) => entity.entity_id);
     }
 
+    const usageEntity = metric(kindDef?.usageMetric);
+
+    // Pool only: the disks actually backing this pool, per ha-mos v0.3.2's
+    // member_disk_serials/parity_disk_serials attributes on the usage
+    // sensor (closes anym001/ha-mos#117). Read here, once, rather than at
+    // render time: pool membership is a live entity attribute, not registry
+    // data, but re-deriving it only when the registry/config actually
+    // changes (this method's only call site) is the same tradeoff every
+    // other resolved entity id here already makes, and membership changes
+    // are rare/administrative rather than a live-updating value. A disk's
+    // own serial is never exposed on any disk entity (confirmed live: MOS
+    // names a disk device after its Linux block name — "sdb", "nvme0n1" —
+    // never the serial), only baked into its registry `identifiers`, hence
+    // `diskSerial()` rather than a name-based lookup.
+    let poolMemberDisks: PoolMemberDisk[] | undefined;
+    let poolParityDisks: PoolMemberDisk[] | undefined;
+    if (kindDef?.id === "pool" && device?.via_device_id && usageEntity) {
+      const disksBySerial = new Map<string, DeviceRegistryEntry>();
+      for (const disk of selectDiskDevices(this._devices, device.via_device_id)) {
+        const serial = diskSerial(disk);
+        if (serial) disksBySerial.set(serial, disk);
+      }
+      const resolvePoolDisk = (serial: string): PoolMemberDisk | undefined => {
+        const diskDevice = disksBySerial.get(serial);
+        if (!diskDevice) return undefined;
+        const diskEntities = byDevice.get(diskDevice.id) ?? [];
+        const diskMetric = (def: MetricDef | undefined) =>
+          def ? findMetricEntity(diskEntities, def)?.entity_id : undefined;
+        return {
+          label: diskDisplayName(diskDevice),
+          usageEntity: diskMetric(DETAIL_KIND_DEFS.disk.usageMetric),
+          temperatureEntity: diskMetric(DETAIL_KIND_DEFS.disk.temperatureMetric),
+          powerStatusEntity: diskMetric(DETAIL_KIND_DEFS.disk.powerStatusMetric),
+          modelEntity: diskMetric(DETAIL_KIND_DEFS.disk.diskModelMetric),
+          typeEntity: diskMetric(DETAIL_KIND_DEFS.disk.diskTypeMetric),
+          sizeEntity: diskMetric(DETAIL_KIND_DEFS.disk.diskSizeMetric),
+          smartWarningEntity: diskMetric(DETAIL_KIND_DEFS.disk.smartWarningMetric),
+        };
+      };
+      const attributes = this.hass.states[usageEntity]?.attributes ?? {};
+      const memberSerials = (attributes.member_disk_serials as string[] | undefined) ?? [];
+      const paritySerials = (attributes.parity_disk_serials as string[] | undefined) ?? [];
+      poolMemberDisks = memberSerials.map(resolvePoolDisk).filter((disk): disk is PoolMemberDisk => disk !== undefined);
+      poolParityDisks = paritySerials.map(resolvePoolDisk).filter((disk): disk is PoolMemberDisk => disk !== undefined);
+    }
+
     return {
       deviceFound,
       deviceName,
@@ -287,7 +365,7 @@ export class MosDetailCard extends LitElement {
       healthyEntity: metric(kindDef?.healthyMetric),
       updateAvailableEntity: metric(kindDef?.updateAvailableMetric),
       autostartEntity: metric(kindDef?.autostartMetric),
-      usageEntity: metric(kindDef?.usageMetric),
+      usageEntity,
       freeSpaceEntity: metric(kindDef?.freeSpaceMetric),
       totalSpaceEntity: metric(kindDef?.totalSpaceMetric),
       usedSpaceEntity: metric(kindDef?.usedSpaceMetric),
@@ -310,6 +388,8 @@ export class MosDetailCard extends LitElement {
       cpuTempMaxEntity: metric(kindDef?.cpuTempMaxMetric),
       diskTemperatures,
       hardwareTemperatureEntities,
+      poolMemberDisks,
+      poolParityDisks,
     };
   }
 
@@ -427,6 +507,11 @@ export class MosDetailCard extends LitElement {
   }
 
   private _renderCard(resolved: Resolved, kindDef: DetailKindDef) {
+    // show_identity/show_status are no-ops for the pool kind: _renderPoolDetail
+    // folds identity (title, filesystem type) and status (problem/scrub/
+    // balance/parity badges) into its own consolidated header instead —
+    // show_stats is what gates that whole block, since it's the direct
+    // replacement for what show_stats used to control for pools.
     const showIdentity = this._config.show_identity ?? true;
     const showStats = this._config.show_stats ?? true;
     const showContainers = this._config.show_containers ?? true;
@@ -443,18 +528,20 @@ export class MosDetailCard extends LitElement {
         @pointerup=${cardGestureHandlers.onPointerUp}
         @pointercancel=${cardGestureHandlers.onPointerCancel}
       >
-        ${showIdentity ? this._renderIdentity(resolved, kindDef) : nothing}
+        ${showIdentity && kindDef.id !== "pool" ? this._renderIdentity(resolved, kindDef) : nothing}
         ${
           showStats
             ? kindDef.id === "disk"
               ? this._renderDiskStats(resolved)
               : kindDef.id === "server"
                 ? this._renderServerStats(resolved)
-                : this._renderMetrics(resolved, kindDef)
+                : kindDef.id === "pool"
+                  ? this._renderPoolDetail(resolved)
+                  : this._renderMetrics(resolved, kindDef)
             : nothing
         }
         ${showContainers ? this._renderContainers(resolved, kindDef) : nothing}
-        ${showStatus ? this._renderStatus(resolved, kindDef) : nothing}
+        ${showStatus && kindDef.id !== "pool" ? this._renderStatus(resolved, kindDef) : nothing}
         ${showPowerToggle && resolved.powerEntity ? this._renderPowerToggle(resolved.powerEntity) : nothing}
       </ha-card>
     `;
@@ -496,10 +583,7 @@ export class MosDetailCard extends LitElement {
         attributes.push({ label: "Size", value: `${formatted.value} ${formatted.unit}` });
       }
     }
-    if (kindDef.id === "pool") {
-      const poolType = stateOf(hass, resolved.poolTypeEntity);
-      if (poolType) attributes.push({ label: "Filesystem", value: poolType });
-    }
+    // Pool's filesystem type shows in _renderPoolDetail's own header instead — see _renderCard's comment on why show_identity is a no-op for pool.
 
     const webUiUrl = stateObj?.attributes.web_ui_url as string | undefined;
     const stateText = this._isGuest(kindDef) ? stateOf(hass, resolved.stateEntity) : undefined;
@@ -567,13 +651,16 @@ export class MosDetailCard extends LitElement {
     `;
   }
 
-  /** A metric row's sparkline, or `undefined` when history is off — folding it into the row is what makes it "labeled" instead of the bare unlabeled block this replaced. `valueScaleLabels` overrides the default "100"/"0" text for a non-percentage series still plotted against that same fixed range (the server kind's CPU-temperature sparkline). */
+  /** A metric row's sparkline, or `undefined` when history is off *or* there isn't yet enough data to draw a line — `<mos-detail-sparkline>` already renders nothing internally below 2 points, but it still carries its own explicit `height`, so a caller placing it in its own block (rather than inline beside a gauge, where an empty slot is invisible next to other content) would otherwise show a bare reserved-but-empty gap while history is still loading. `valueScaleLabels` overrides the default "100"/"0" text for a non-percentage series still plotted against that same fixed range (the server kind's CPU-temperature sparkline). */
   private _sparklineFor(entityId: string, color: string, valueScaleLabels?: { top: string; bottom: string }) {
     if (!(this._config.show_history ?? true)) {
       return undefined;
     }
-    const showTimeScale = this._config.sparkline_show_time_scale ?? false;
     const points = this._sampleHistory(entityId);
+    if (!points || points.length < 2) {
+      return undefined;
+    }
+    const showTimeScale = this._config.sparkline_show_time_scale ?? false;
     return html`
       <mos-detail-sparkline
         class="sparkline"
@@ -588,7 +675,7 @@ export class MosDetailCard extends LitElement {
     `;
   }
 
-  /** Guest and pool kinds: metric-rows for CPU/memory or usage, each with its own gauge, label, and (kind-permitting) labeled sparkline. Disk uses `_renderDiskStats` instead — it has no gauge-worthy percentage metric. */
+  /** Guest kinds only: metric-rows for CPU/memory, each with its own gauge, label, and (kind-permitting) labeled sparkline. Disk uses `_renderDiskStats`, server uses `_renderServerStats`, pool uses `_renderPoolDetail` — none has a gauge-worthy percentage metric shaped like this one. */
   private _renderMetrics(resolved: Resolved, kindDef: DetailKindDef) {
     const hass = this.hass;
     const rows: unknown[] = [];
@@ -637,24 +724,6 @@ export class MosDetailCard extends LitElement {
           );
         }
       }
-    } else if (kindDef.id === "pool" && resolved.usageEntity) {
-      const usagePct = Number(stateOf(hass, resolved.usageEntity));
-      const usedBytes = stateToBytes(resolved.usedSpaceEntity ? hass.states[resolved.usedSpaceEntity] : undefined);
-      const totalBytes = stateToBytes(resolved.totalSpaceEntity ? hass.states[resolved.totalSpaceEntity] : undefined);
-      const usedFormatted = usedBytes !== undefined ? formatBytes(usedBytes) : undefined;
-      const totalFormatted = totalBytes !== undefined ? formatBytes(totalBytes) : undefined;
-      rows.push(
-        this._metricRow({
-          gauge: html`<mos-detail-gauge .value=${usagePct} icon="mdi:database"></mos-detail-gauge>`,
-          label: "Usage",
-          value: Number.isFinite(usagePct) ? html`${formatSigFigs(usagePct)}<span class="stat-unit">%</span>` : "–",
-          sub:
-            usedFormatted && totalFormatted
-              ? `${usedFormatted.value}${usedFormatted.unit} / ${totalFormatted.value}${totalFormatted.unit}`
-              : undefined,
-          sparkline: this._sparklineFor(resolved.usageEntity, "var(--info-color, #039be5)"),
-        }),
-      );
     }
 
     if (rows.length === 0) {
@@ -663,7 +732,261 @@ export class MosDetailCard extends LitElement {
     return html`<div class="metrics">${rows}</div>`;
   }
 
-  /** Disk's plain (non-gauge) stats — unchanged layout, no history for either. */
+  /** Pool only: problem/scrub/balance/parity-running badges — same data `_renderStatus` used to show as a separate block, now folded into `_renderPoolDetail`'s own header (show_status is a no-op for pool, see `_renderCard`). */
+  private _poolStatusBadges(resolved: Resolved): StatusBadge[] {
+    const hass = this.hass;
+    const badges: StatusBadge[] = [];
+    if (resolved.poolProblemEntity && isOn(hass, resolved.poolProblemEntity)) {
+      badges.push({ icon: "mdi:alert-circle-outline", label: "Problem detected", state: "warning" });
+    }
+    if (resolved.scrubRunningEntity && isOn(hass, resolved.scrubRunningEntity)) {
+      badges.push({ icon: "mdi:magnify-scan", label: "Scrub running", state: "on" });
+    }
+    if (resolved.balanceRunningEntity && isOn(hass, resolved.balanceRunningEntity)) {
+      badges.push({ icon: "mdi:scale-balance", label: "Balance running", state: "on" });
+    }
+    if (resolved.parityRunningEntity && isOn(hass, resolved.parityRunningEntity)) {
+      badges.push({ icon: "mdi:sync", label: "Parity check running", state: "on" });
+    }
+    return badges;
+  }
+
+  /**
+   * The pool kind's dedicated layout (replaces identity/metrics/status for
+   * this kind — see `_renderCard`'s comment): a gauge+title+state header,
+   * then (per `show_pool_disks`/`pool_disk_detail`) the parity and member
+   * disks actually backing this pool, resolved in `_resolve()` from ha-mos
+   * v0.3.2's `member_disk_serials`/`parity_disk_serials` pool attributes.
+   * Both groups are structurally absent (not just empty) on an older
+   * ha-mos or a pool with no device lists, so they simply don't render —
+   * no version gate needed.
+   */
+  private _renderPoolDetail(resolved: Resolved) {
+    const hass = this.hass;
+    const title = this._config.title || resolved.deviceName;
+    const usagePct = resolved.usageEntity ? Number(stateOf(hass, resolved.usageEntity)) : NaN;
+    const usedBytes = stateToBytes(resolved.usedSpaceEntity ? hass.states[resolved.usedSpaceEntity] : undefined);
+    const totalBytes = stateToBytes(resolved.totalSpaceEntity ? hass.states[resolved.totalSpaceEntity] : undefined);
+    const usedFormatted = usedBytes !== undefined ? formatBytes(usedBytes) : undefined;
+    const totalFormatted = totalBytes !== undefined ? formatBytes(totalBytes) : undefined;
+    const poolType = stateOf(hass, resolved.poolTypeEntity);
+    const badges = this._poolStatusBadges(resolved);
+
+    const showPoolDisks = this._config.show_pool_disks ?? true;
+    const diskLayout = this._config.pool_disk_layout ?? "rows";
+    const diskValueStyle = this._config.pool_disk_value_style ?? "bar";
+    const diskAttributes = this._config.pool_disk_attributes ?? ["model", "size"];
+
+    const sparkline = resolved.usageEntity
+      ? this._sparklineFor(resolved.usageEntity, "var(--info-color, #039be5)")
+      : undefined;
+
+    return html`
+      <div class="pool-detail">
+        <div class="identity pool-header">
+          <div class="icon-wrap">
+            <ha-icon class="fallback-icon" icon="mdi:database"></ha-icon>
+          </div>
+          <div class="identity-text">
+            <div class="title-row">
+              <span class="title">${title}</span>
+              ${poolType ? html`<span class="state-chip">${poolType}</span>` : nothing}
+            </div>
+            ${
+              badges.length
+                ? html`<div class="status">
+                    ${badges.map(
+                      (badge) =>
+                        html`<span class="badge ${badge.state}"
+                          ><ha-icon icon=${badge.icon}></ha-icon>${badge.label}</span
+                        >`,
+                    )}
+                  </div>`
+                : nothing
+            }
+          </div>
+          <div class="pool-header-gauge">
+            <div class="gauge">
+              <mos-detail-gauge .value=${usagePct} icon="mdi:database"></mos-detail-gauge>
+            </div>
+            <div class="pool-header-gauge-stat">
+              <div class="metric-value">
+                ${Number.isFinite(usagePct) ? html`${formatSigFigs(usagePct)}<span class="stat-unit">%</span>` : "–"}
+              </div>
+              ${
+                usedFormatted && totalFormatted
+                  ? html`<div class="metric-sub">
+                      ${usedFormatted.value}${usedFormatted.unit} / ${totalFormatted.value}${totalFormatted.unit}
+                    </div>`
+                  : nothing
+              }
+            </div>
+          </div>
+        </div>
+        ${sparkline ? html`<div class="pool-header-sparkline">${sparkline}</div>` : nothing}
+        ${
+          showPoolDisks && resolved.poolParityDisks?.length
+            ? html`<div class="pool-disk-group">
+                <div class="temp-group-label">Parity</div>
+                ${this._renderPoolDiskList(resolved.poolParityDisks, diskLayout, diskValueStyle, diskAttributes)}
+              </div>`
+            : nothing
+        }
+        ${
+          showPoolDisks && resolved.poolMemberDisks?.length
+            ? html`<div class="pool-disk-group">
+                <div class="temp-group-label">Disks</div>
+                ${this._renderPoolDiskList(resolved.poolMemberDisks, diskLayout, diskValueStyle, diskAttributes)}
+              </div>`
+            : nothing
+        }
+      </div>
+    `;
+  }
+
+  /**
+   * A pool's member/parity disks, laid out per three independent config
+   * axes rather than one tiered style — `layout` (arrangement),
+   * `valueStyle` (how each disk's value is represented), and `attributes`
+   * (which descriptive fields show, if any). All three value styles show a
+   * disk's *temperature* for now — ha-mos doesn't expose a per-disk usage
+   * percentage yet (tracked: anym001/ha-mos#119); swapping
+   * `_renderPoolDiskItem`'s `value` to read a usage entity/attribute once
+   * that lands is the only change needed here.
+   */
+  private _renderPoolDiskList(
+    disks: readonly PoolMemberDisk[],
+    layout: "grid" | "rows",
+    valueStyle: "gauge" | "bar" | "text",
+    attributes: readonly PoolDiskAttribute[],
+  ) {
+    const items = disks.map((disk) => this._renderPoolDiskItem(disk, valueStyle, attributes));
+    return layout === "grid"
+      ? html`<div class="temp-grid">${items}</div>`
+      : html`<div class="pool-disk-rows">${items}</div>`;
+  }
+
+  /** One disk, in whichever `valueStyle` was configured, with `attributes` appended (present in every style, though the gauge style nests them under the label instead of as a full-width line below — a reasonable difference in shape, not a bug, given the gauge style's info column already stacks label/value together). */
+  private _renderPoolDiskItem(
+    disk: PoolMemberDisk,
+    valueStyle: "gauge" | "bar" | "text",
+    attributes: readonly PoolDiskAttribute[],
+  ) {
+    const hass = this.hass;
+    const { value, unit } = this._poolDiskValue(disk);
+    const known = Number.isFinite(value);
+    const valueText = known ? html`${formatSigFigs(value)}<span class="stat-unit">${unit}</span>` : "–";
+    const icon = diskTypeIcon(stateOf(hass, disk.typeEntity));
+    const attributesRow = this._renderPoolDiskAttributes(disk, attributes);
+
+    if (valueStyle === "gauge") {
+      return html`
+        <div class="pool-disk-item pool-disk-item-gauge">
+          <div class="gauge">
+            <mos-detail-gauge .value=${value} icon=${icon}></mos-detail-gauge>
+          </div>
+          <div class="metric-info">
+            <div class="metric-label">${disk.label}</div>
+            <div class="metric-value">${valueText}</div>
+            ${attributesRow}
+          </div>
+        </div>
+      `;
+    }
+
+    if (valueStyle === "bar") {
+      const pct = known ? Math.max(0, Math.min(100, value)) : 0;
+      const color = known ? severityColor(pct) : "var(--disabled-color, #9e9e9e)";
+      return html`
+        <div class="pool-disk-item pool-disk-item-bar">
+          <div class="temp-bar-row">
+            <ha-icon class="temp-bar-icon" icon=${icon}></ha-icon>
+            <span class="temp-bar-label">${disk.label}</span>
+            <div class="temp-bar-track">
+              <div class="temp-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <span class="temp-bar-value">${valueText}</span>
+          </div>
+          ${attributesRow}
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="pool-disk-item pool-disk-item-text">
+        <div class="pool-disk-item-main">
+          <ha-icon icon=${icon}></ha-icon>
+          <span class="pool-disk-name">${disk.label}</span>
+          <span class="pool-disk-text-value">${valueText}</span>
+        </div>
+        ${attributesRow}
+      </div>
+    `;
+  }
+
+  /**
+   * A disk's primary value for the pool's gauge/bar/text styles — usage %
+   * (ha-mos v0.3.3+, closes anym001/ha-mos#119) where available, falling
+   * back to temperature on an older ha-mos that doesn't report it yet.
+   */
+  private _poolDiskValue(disk: PoolMemberDisk): { value: number; unit: string } {
+    const hass = this.hass;
+    if (disk.usageEntity) {
+      return { value: Number(stateOf(hass, disk.usageEntity)), unit: "%" };
+    }
+    if (disk.temperatureEntity) {
+      return { value: Number(stateOf(hass, disk.temperatureEntity)), unit: "°C" };
+    }
+    return { value: NaN, unit: "" };
+  }
+
+  /** The configured subset of a disk's model/type/size/power status/SMART warning/temperature, as `.attribute` chips — `undefined`/no-op fields are dropped, same as every other attributes row in this card. Temperature is offered here even though it used to be the primary value, so it doesn't disappear now that usage has taken that role. */
+  private _renderPoolDiskAttributes(disk: PoolMemberDisk, attributes: readonly PoolDiskAttribute[]) {
+    if (attributes.length === 0) {
+      return nothing;
+    }
+    const hass = this.hass;
+    const chips: unknown[] = [];
+    if (attributes.includes("model")) {
+      const model = stateOf(hass, disk.modelEntity);
+      if (model) chips.push(html`<span class="attribute">${model}</span>`);
+    }
+    if (attributes.includes("type")) {
+      const type = stateOf(hass, disk.typeEntity);
+      if (type) chips.push(html`<span class="attribute">${type}</span>`);
+    }
+    if (attributes.includes("temperature")) {
+      const temperature = stateOf(hass, disk.temperatureEntity);
+      if (temperature) chips.push(html`<span class="attribute">${temperature}°C</span>`);
+    }
+    if (attributes.includes("size")) {
+      const size = stateToBytes(disk.sizeEntity ? hass.states[disk.sizeEntity] : undefined);
+      if (size !== undefined) {
+        const formatted = formatBytes(size);
+        chips.push(html`<span class="attribute">${formatted.value}${formatted.unit}</span>`);
+      }
+    }
+    if (attributes.includes("power_status")) {
+      const powerStatus = stateOf(hass, disk.powerStatusEntity);
+      if (powerStatus) chips.push(html`<span class="attribute">${powerStatus}</span>`);
+    }
+    if (attributes.includes("smart_warning") && disk.smartWarningEntity && isOn(hass, disk.smartWarningEntity)) {
+      chips.push(html`<span class="badge warning"><ha-icon icon="mdi:alert-circle-outline"></ha-icon>SMART</span>`);
+    }
+    if (chips.length === 0) {
+      return nothing;
+    }
+    return html`<div class="attributes">${chips}</div>`;
+  }
+
+  /**
+   * Disk's stats: a usage gauge + labeled sparkline (ha-mos v0.3.3+ closed
+   * anym001/ha-mos#119, adding a real per-disk `disk_usage`/space set — the
+   * same generic `usageEntity`/`usedSpaceEntity`/`totalSpaceEntity`
+   * resolution the pool kind already used, since `detail-kinds.ts`'s disk
+   * entry now defines the same metrics), plus temperature/power status as
+   * plain values, same layout as before that.
+   */
   private _renderDiskStats(resolved: Resolved) {
     const hass = this.hass;
     const temperature = stateOf(hass, resolved.temperatureEntity);
@@ -672,11 +995,35 @@ export class MosDetailCard extends LitElement {
       : undefined;
     const powerStatus = stateOf(hass, resolved.powerStatusEntity);
 
-    if (!resolved.temperatureEntity && !resolved.powerStatusEntity) {
+    const usagePct = resolved.usageEntity ? Number(stateOf(hass, resolved.usageEntity)) : NaN;
+    const usedBytes = stateToBytes(resolved.usedSpaceEntity ? hass.states[resolved.usedSpaceEntity] : undefined);
+    const totalBytes = stateToBytes(resolved.totalSpaceEntity ? hass.states[resolved.totalSpaceEntity] : undefined);
+    const usedFormatted = usedBytes !== undefined ? formatBytes(usedBytes) : undefined;
+    const totalFormatted = totalBytes !== undefined ? formatBytes(totalBytes) : undefined;
+
+    if (!resolved.usageEntity && !resolved.temperatureEntity && !resolved.powerStatusEntity) {
       return nothing;
     }
 
     return html`
+      ${
+        resolved.usageEntity
+          ? html`<div class="metrics">
+              ${this._metricRow({
+                gauge: html`<mos-detail-gauge .value=${usagePct} icon="mdi:harddisk"></mos-detail-gauge>`,
+                label: "Usage",
+                value: Number.isFinite(usagePct)
+                  ? html`${formatSigFigs(usagePct)}<span class="stat-unit">%</span>`
+                  : "–",
+                sub:
+                  usedFormatted && totalFormatted
+                    ? `${usedFormatted.value}${usedFormatted.unit} / ${totalFormatted.value}${totalFormatted.unit}`
+                    : undefined,
+                sparkline: this._sparklineFor(resolved.usageEntity, "var(--info-color, #039be5)"),
+              })}
+            </div>`
+          : nothing
+      }
       <div class="stats">
         ${
           resolved.temperatureEntity
@@ -928,6 +1275,7 @@ export class MosDetailCard extends LitElement {
     `;
   }
 
+  /** No `"pool"` branch: its status badges render inside _renderPoolDetail's own header instead, via _poolStatusBadges — show_status is a no-op for pool, see _renderCard's comment. */
   private _renderStatus(resolved: Resolved, kindDef: DetailKindDef) {
     const hass = this.hass;
     const badges: StatusBadge[] = [];
@@ -951,19 +1299,6 @@ export class MosDetailCard extends LitElement {
           label: `Autostart ${autostart ? "on" : "off"}`,
           state: autostart ? "on" : "off",
         });
-      }
-    } else if (kindDef.id === "pool") {
-      if (resolved.poolProblemEntity && isOn(hass, resolved.poolProblemEntity)) {
-        badges.push({ icon: "mdi:alert-circle-outline", label: "Problem detected", state: "warning" });
-      }
-      if (resolved.scrubRunningEntity && isOn(hass, resolved.scrubRunningEntity)) {
-        badges.push({ icon: "mdi:magnify-scan", label: "Scrub running", state: "on" });
-      }
-      if (resolved.balanceRunningEntity && isOn(hass, resolved.balanceRunningEntity)) {
-        badges.push({ icon: "mdi:scale-balance", label: "Balance running", state: "on" });
-      }
-      if (resolved.parityRunningEntity && isOn(hass, resolved.parityRunningEntity)) {
-        badges.push({ icon: "mdi:sync", label: "Parity check running", state: "on" });
       }
     } else if (kindDef.id === "disk") {
       if (resolved.smartWarningEntity && isOn(hass, resolved.smartWarningEntity)) {
@@ -1244,6 +1579,77 @@ export class MosDetailCard extends LitElement {
       text-align: right;
       font-size: 13px;
       font-weight: 500;
+    }
+    .pool-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    /* Same row shape as kind-title-card's icon+title+trailing-gauge row
+       (icon badge, a title column that actually grows to fill the middle,
+       the gauge pinned to the far end) rather than cramming the gauge and
+       all of the title/state text into one narrow column together. */
+    .identity.pool-header {
+      align-items: center;
+    }
+    .pool-header .identity-text {
+      flex: 1 1 auto;
+    }
+    .pool-header-gauge {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pool-header-gauge-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .pool-header-sparkline {
+      height: 30px;
+    }
+    .pool-disk-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .pool-disk-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pool-disk-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 12px;
+    }
+    .pool-disk-item-gauge {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .pool-disk-item-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pool-disk-item-main ha-icon {
+      flex: 0 0 auto;
+      --mdc-icon-size: 16px;
+      color: var(--secondary-text-color);
+    }
+    .pool-disk-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pool-disk-text-value {
+      flex: 0 0 auto;
+      color: var(--secondary-text-color);
     }
     .containers {
       display: flex;

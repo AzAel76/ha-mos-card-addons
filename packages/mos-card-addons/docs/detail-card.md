@@ -12,7 +12,9 @@ no `model_id` of its own, but is still auto-detected structurally (as the
 `via_device_id` parent of any guest/pool/disk device) and shows every
 temperature reading available for it — CPU (Main/Average/Max), each disk's
 own temperature, and any other hardware-sensor reading `ha-mos` reports
-(motherboard, PSU, ...) — in one of three layouts.
+(motherboard, PSU, ...) — in one of three layouts. A pool shows the actual
+disks backing it (member and, where present, parity), resolved from
+`ha-mos` v0.3.2's pool/disk linkage.
 
 Built to be opened from a `fire-dom-event`/[popup-card](https://github.com/olivierplante/popup-card)
 `tap_action` on [ha-mos-card](https://github.com/anym001/ha-mos-card) or
@@ -26,8 +28,10 @@ See the [repo README](../../../README.md) for installation. This page covers usa
 ## Requirements
 
 Sensor history recorded by Home Assistant's recorder (on by default) for
-the CPU/pool-usage history sparkline — a fresh install with no history yet
-just shows the stats without a trend line until some accumulates.
+the CPU/pool-usage/disk-usage history sparkline — a fresh install with no
+history yet just shows the stats without a trend line until some
+accumulates. Disk usage history additionally needs `ha-mos` v0.3.3+ (see
+Known limitations below for older versions).
 
 ## Usage
 
@@ -41,16 +45,24 @@ device_id: 1a2b3c4d5e6f7890abcdef1234567890
 Add Card → "MOS Detail Card" opens a visual editor built on Home Assistant's
 native `ha-form`/selector components:
 
-- **Device** — a device picker scoped to `ha-mos` devices (
-  `selector: { device: { filter: { integration: "mos" } } }`). Pick any
-  guest, pool, or disk device directly; the card figures out the rest.
-- **Kind override** — only needed if a future `ha-mos` device kind isn't yet
-  recognized by this card's auto-detection.
+- **MOS server → Kind → Device** — a three-step cascade: pick the server,
+  then which kind of thing you're after (Docker/Compose/LXC/VM/Pool/Disk/
+  Server), then the matching device found under that server (skipped
+  entirely for the "Server" kind — there's only one server device, so
+  picking that kind already fully identifies it). Editing an
+  already-configured card opens with all three correctly pre-filled, not
+  blank. These three fields are an editor-only convenience — only the
+  device you land on ever gets saved to `device_id`; switching server or
+  kind clears whatever device was previously selected, since it almost
+  certainly doesn't belong to the new one.
 - **Title** — optional name override.
 - **Show identity / Show current-value stats / Show history sparkline(s) /
   Show status badges / Show power toggle** — each independently on/off.
   History adds its own lookback window and optional value/time scale fields
-  once switched on.
+  once switched on. For the pool kind, **Show identity** and **Show status
+  badges** are no-ops — its dedicated layout folds title/filesystem type
+  and status badges into its own header, gated by **Show current-value
+  stats** instead.
 - **Compose: container count position / show container list / container
   list style** — always shown in the editor (no-ops for every other kind,
   same as the fields above): where the running/total container count
@@ -61,7 +73,17 @@ native `ha-form`/selector components:
   the server's temperature readings (grouped CPU / System / Disk — see the
   per-kind table below), and whether the System group (generic
   hardware-sensor readings) shows at all.
+- **Pool: show member/parity disks / arrangement / value style /
+  attributes** — always shown in the editor (no-ops for every other
+  kind): whether the pool's actual member/parity disks show at all, then
+  three independent choices — **Rows** or **Grid** (arrangement),
+  **Gauge**, **Bar**, or **Text** (how each disk's value is shown), and
+  which of Model/Type/Size/Power status/SMART warning to display, picked
+  individually rather than as a fixed tier.
 - **Interactions** — the whole-card tap/hold/double-tap actions.
+- **Advanced → Kind override** — separate from the cascade above and
+  normally left untouched: only needed if a future `ha-mos` device kind
+  isn't yet recognized by this card's auto-detection.
 
 No further entity pickers: every entity the card needs is discovered
 automatically from the device and entity registries, based on the selected
@@ -167,6 +189,10 @@ show_status: true
 show_power_toggle: true
 cpu_temp_detail_style: bars # bars | grid | history — Server only
 show_hardware_sensors: true # Server only
+show_pool_disks: true # Pool only
+pool_disk_layout: rows # grid | rows — Pool only
+pool_disk_value_style: bar # gauge | bar | text — Pool only
+pool_disk_attributes: [model, size] # model | type | size | power_status | smart_warning | temperature — Pool only
 tap_action:
   action: none
 hold_action:
@@ -180,32 +206,58 @@ double_tap_action:
 | `device_id`                                        | device_id of the guest/pool/disk/server device to show (required)                                                                                                                               |
 | `kind`                                             | Overrides kind auto-detection: `docker` \| `compose` \| `lxc` \| `vm` \| `pool` \| `disk` \| `server`                                                                                           |
 | `title`                                            | Overrides the device's own name                                                                                                                                                                 |
-| `show_identity`                                    | Icon/picture, title, and kind-specific descriptive attributes, default `true`                                                                                                                   |
-| `show_stats`                                       | Current-value gauges/stats, default `true`                                                                                                                                                      |
-| `show_history`                                     | History sparkline, where a percentage-scale metric exists (CPU for guests, usage for pools; no history for disks), default `true`                                                               |
+| `show_identity`                                    | Icon/picture, title, and kind-specific descriptive attributes, default `true`. No-op for the pool kind (see `show_stats`)                                                                       |
+| `show_stats`                                       | Current-value gauges/stats, default `true`. For pools this gates the whole dedicated pool layout (gauge, state header, member/parity disks)                                                     |
+| `show_history`                                     | History sparkline, where a percentage-scale metric exists (CPU for guests, usage for pools and disks), default `true`                                                                           |
 | `history_hours`                                    | Sparkline lookback window in hours, default `3`                                                                                                                                                 |
 | `sparkline_show_value_scale`                       | Faint 0/50/100% reference on the sparkline, default `false`                                                                                                                                     |
 | `sparkline_show_time_scale`                        | Time-axis tick labels on the sparkline, default `false`                                                                                                                                         |
 | `container_count_style`                            | Compose only: `stats` (default, a stat item alongside CPU/memory) or `subtitle` (a text line under the title)                                                                                   |
 | `show_containers`                                  | Compose only: the list of the stack's member containers, default `true`                                                                                                                         |
 | `containers_list_style`                            | Compose only: `list` (default, one row per container) or `chips` (wrapped pills)                                                                                                                |
-| `show_status`                                      | Health/update/autostart/problem/SMART-warning badges, kind-permitting, default `true`                                                                                                           |
+| `show_status`                                      | Health/update/autostart/SMART-warning badges, kind-permitting, default `true`. No-op for the pool kind (see `show_stats`)                                                                       |
 | `show_power_toggle`                                | A real on/off toggle — guest kinds only (docker/compose/lxc/vm), default `true`                                                                                                                 |
 | `cpu_temp_detail_style`                            | Server only: `bars` (default, one horizontal bar per reading), `grid` (a small gauge per reading), or `history` (CPU Main as a gauge + labeled sparkline, every other reading as a plain value) |
 | `show_hardware_sensors`                            | Server only: the "System" group of generic hardware-sensor readings, default `true` — see Known limitations below                                                                               |
+| `show_pool_disks`                                  | Pool only: show the disks actually backing this pool under its gauge, default `true`                                                                                                            |
+| `pool_disk_layout`                                 | Pool only: `rows` (default, one per line) or `grid` (wrapped tiles)                                                                                                                             |
+| `pool_disk_value_style`                            | Pool only: `bar` (default, a severity-colored horizontal track), `gauge` (a small radial gauge), or `text` (the plain value, no visual)                                                         |
+| `pool_disk_attributes`                             | Pool only: any of `model`/`type`/`size`/`power_status`/`smart_warning`/`temperature`, independently — default `[model, size]`                                                                   |
 | `tap_action` / `hold_action` / `double_tap_action` | Standard Home Assistant [action config](https://www.home-assistant.io/dashboards/actions/) for the whole card                                                                                   |
 
 ## What it shows, per kind
 
-|         | Identity                                                        | Stats                                                                                                                                                                                                                                                      | History                             | Status                                                | Power toggle |
-| ------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------- | ------------ |
-| Docker  | Icon/picture, state, image title/repo/network mode, web UI link | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                | CPU %                               | Healthy, update available, autostart                  | Yes          |
-| Compose | Same as Docker, plus a container-count subtitle option          | Same as Docker, plus running/total container count                                                                                                                                                                                                         | CPU %                               | Healthy, update available, autostart                  | Yes          |
-| LXC     | Icon/picture, state                                             | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                | CPU %                               | Autostart                                             | Yes          |
-| VM      | Icon/picture, state                                             | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                | CPU %                               | Autostart                                             | Yes          |
-| Pool    | Filesystem type                                                 | Usage % gauge + labeled sparkline, used/total space                                                                                                                                                                                                        | Usage %                             | Problem, scrub/balance/parity running (if applicable) | —            |
-| Disk    | Model, type, size                                               | Temperature, power status                                                                                                                                                                                                                                  | —                                   | SMART warning, preclear running                       | —            |
-| Server  | —                                                               | Every temperature reading, grouped **CPU → System → Disk**: CPU Main/Average/Max, generic hardware-sensor readings (`show_hardware_sensors`), and each disk's own temperature (`cpu_temp_detail_style`: bars, gauge grid, or gauge + history for CPU Main) | CPU Main only, `history` style only | —                                                     | —            |
+|         | Identity                                                        | Stats                                                                                                                                                                                                                                                                    | History                             | Status                                 | Power toggle |
+| ------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- | -------------------------------------- | ------------ |
+| Docker  | Icon/picture, state, image title/repo/network mode, web UI link | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                              | CPU %                               | Healthy, update available, autostart   | Yes          |
+| Compose | Same as Docker, plus a container-count subtitle option          | Same as Docker, plus running/total container count                                                                                                                                                                                                                       | CPU %                               | Healthy, update available, autostart   | Yes          |
+| LXC     | Icon/picture, state                                             | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                              | CPU %                               | Autostart                              | Yes          |
+| VM      | Icon/picture, state                                             | CPU % gauge + labeled sparkline, memory (of host RAM) gauge                                                                                                                                                                                                              | CPU %                               | Autostart                              | Yes          |
+| Pool    | Folded into its own header (see below)                          | Usage % gauge + labeled sparkline, used/total space, filesystem type, problem/scrub/balance/parity-running state — plus, per `show_pool_disks`, the actual parity and member disks backing this pool (`pool_disk_layout`/`pool_disk_value_style`/`pool_disk_attributes`) | Usage %                             | Folded into its own header (see below) | —            |
+| Disk    | Model, type, size                                               | Usage % gauge + labeled sparkline, used/total space, temperature, power status                                                                                                                                                                                           | Usage %                             | SMART warning, preclear running        | —            |
+| Server  | —                                                               | Every temperature reading, grouped **CPU → System → Disk**: CPU Main/Average/Max, generic hardware-sensor readings (`show_hardware_sensors`), and each disk's own temperature (`cpu_temp_detail_style`: bars, gauge grid, or gauge + history for CPU Main)               | CPU Main only, `history` style only | —                                      | —            |
+
+**Pools get a dedicated layout**, not the generic identity/stats/status
+sections every other kind uses: one consolidated header (usage gauge,
+title, filesystem type, and problem/scrub/balance/parity-running state,
+all in one place) followed by, per `show_pool_disks`, a "Parity" group
+(only shown when the pool actually has one) and a "Disks" group listing
+every disk `ha-mos` reports as backing this pool — resolved by matching
+each disk's physical serial (read from its own device registry entry, not
+exposed on any disk entity) against the pool's `member_disk_serials`/
+`parity_disk_serials` attributes. Three independent config axes control
+how these groups render: `pool_disk_layout` (`rows`, default, or `grid`),
+`pool_disk_value_style` (`bar`, default; `gauge`; or `text` — no visual,
+just the value), and `pool_disk_attributes` (any of `model`/`type`/`size`/
+`power_status`/`smart_warning`/`temperature`, picked individually rather
+than as a fixed tier). Each disk's icon reflects its own `disk_type`
+reading (NVMe/SSD/USB/...), the same per-type icons MOS's own web UI disk
+table uses. The bar/gauge/text value is each disk's usage percentage
+(`ha-mos` v0.3.3+, closes
+[anym001/ha-mos#119](https://github.com/anym001/ha-mos/issues/119)),
+falling back to temperature on an older `ha-mos` that doesn't report usage
+yet — `temperature` is also available as its own independent attribute
+chip regardless of which value style is picked.
 
 Every gauge with a history sparkline renders it labeled, in the same row as
 the gauge and its current value (matching `mos-server-summary-card`'s
@@ -215,8 +267,11 @@ its total installed memory, a host-relative percentage gauge) but never as
 a history sparkline: it's a raw byte value with no fixed scale, and Home
 Assistant's history API doesn't return per-point units — there's no
 reliable way to normalize an older sample against whatever unit it was
-displayed in at the time. CPU load and pool usage are already fixed 0-100%
-scales, so they don't have that problem.
+displayed in at the time. CPU load and pool/disk usage are already fixed
+0-100% scales, so they don't have that problem. Fixing this properly means
+`ha-mos` exposing a real percentage sensor rather than this card
+reconstructing one from raw history — requested:
+[anym001/ha-mos#120](https://github.com/anym001/ha-mos/issues/120).
 
 **Compose stacks additionally show a member-container list** (toggle
 `show_containers`, styled via `containers_list_style`) — the container
@@ -230,12 +285,21 @@ is the most this card can show without a `ha-mos` change.
 
 ## Known limitations
 
-- `ha-mos` doesn't currently expose disk-to-pool membership as an
-  attribute, so this card treats pools and disks as independent devices
-  with no cross-linking (e.g. no "member disks" list on a pool's detail
-  view) — even though the raw MOS API does link them (confirmed directly
-  against a live instance). Tracked upstream:
-  [anym001/ha-mos#117](https://github.com/anym001/ha-mos/issues/117).
+- The disk kind's usage gauge/sparkline and the pool disk list's usage
+  value both need `ha-mos` v0.3.3+ (closes
+  [anym001/ha-mos#119](https://github.com/anym001/ha-mos/issues/119)),
+  which added a `disk_usage`/space sensor set to every physical disk. On
+  an older `ha-mos`, the disk kind's usage section is structurally absent
+  (falls back to just temperature/power status, same as before this
+  version) and the pool disk list falls back to temperature as its value.
+- The pool kind's parity-disk group is implemented against `ha-mos`
+  v0.3.2's confirmed `parity_disks`/`parity_disk_serials` attribute shape
+  ([anym001/ha-mos#117](https://github.com/anym001/ha-mos/issues/117)),
+  but hasn't had a live end-to-end check against an actual
+  parity-configured pool (mdadm/similar) — only the member-disk path has
+  been verified against real hardware so far. It degrades gracefully (the
+  group just doesn't render) the same as every other optional section
+  here, so this is a "not yet verified" note, not a known bug.
 - The server kind's "System" group (generic hardware-sensor readings) can
   duplicate CPU/disk readings shown elsewhere on the same server — e.g. a
   "CPU Temp" hardware sensor reading the same value as CPU Main, or an
