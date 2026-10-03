@@ -7,3 +7,7 @@ dist/
 
 # Local dev tooling (demo dashboard with real device IDs)
 dev/
+.env.*
+!.env.example
+*.secret
+CLAUDE.local.md

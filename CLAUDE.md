@@ -82,7 +82,7 @@ could all end up on one dashboard); it's a plain intra-package constraint
 now, kept for the same reason — nothing here dedupes a `customElements`
 registration for you.
 
-## Commands
+## How to run
 
 ```bash
 npm install
@@ -133,6 +133,16 @@ symptom). `npm run deploy` automates the scp step via `scripts/deploy.sh`,
 configured with a package-local `.env` (see `.env.example`) for `HA_HOST`
 / `HA_CONFIG_PATH`; the root `scripts/deploy-all.sh` (`npm run deploy` from
 the repo root) does the same thing via one shared root `.env`.
+
+## How to test
+
+There is no unit test suite. Before committing or releasing:
+
+1. `npm run lint`, `npm run lint:md`, `npm run format:check` and
+   `npm run typecheck` (CI runs the same in `lint.yml` / `build.yml`).
+2. `npm run build --workspaces`, then deploy to a Home Assistant
+   instance and hard-refresh: check the console version banner, then
+   open each card and its editor on a test dashboard.
 
 ## Architecture: mos-kind-title-card
 
@@ -395,3 +405,21 @@ number covers all three cards. The flow:
 release-please only proposes a release once a commit on `main` uses a
 recognized Conventional Commit type — it won't touch history that predates
 adopting it.
+
+## Conventions
+
+- Conventional Commits (enforced by commitlint), scoped by card where
+  it applies: `kind-title-card`, `server-summary-card`,
+  `detail-card`, `shared`, `release`.
+- One self-contained bundle (`dist/mos-card-addons.js`); keep the
+  custom element names stable (see "Custom element names").
+- Releases go through release-please; don't edit generated changelog
+  sections by hand.
+
+## Where I left off
+
+- 0.3.0 released through release-please: detail card pool/disk
+  linkage, cascading picker and disk usage; the kind-title card editor
+  regrouped into collapsible sections.
+- Local dev tooling (`dev/`, a demo dashboard with real device IDs) is
+  gitignored and stays local.
